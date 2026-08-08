@@ -419,6 +419,7 @@ class Agent:
         if not parts:
             return None
         joined = "\n".join(parts)
+        self._logger.state_block(joined)
         return Message.user(f"[state]\n{joined}")
 
     def _call_opts(self) -> dict[str, Any]:

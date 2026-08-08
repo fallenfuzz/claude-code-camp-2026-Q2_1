@@ -89,6 +89,26 @@ class TestVolatileStateBlock(unittest.TestCase):
         self.assertIn("state_block_failed", log_text)
 
 
+    def test_the_block_is_recorded_beside_the_call_it_shaped(self):
+        transport = CapturingTransport(ok(end_turn("done")))
+        agent, assembled = build_agent(
+            transport, "recorded", lambda: "A Nexus, first time here"
+        )
+        assembled.context.add(run_dsl.Message.user("Explore."))
+        agent.run()
+
+        recorded = [
+            json.loads(line)
+            for line in Path(assembled.logger.path).read_text().splitlines()
+            if line.strip()
+        ]
+        blocks = [event for event in recorded if event["phase"] == "state_block"]
+        self.assertEqual(len(blocks), 1)
+        self.assertIn("A Nexus, first time here", blocks[0]["text"])
+        # What was recorded is what the model was sent.
+        self.assertIn(blocks[0]["text"], json.dumps(transport.bodies[0]))
+
+
 class TestStateBlockWiring(unittest.TestCase):
     class _Config:
         def __init__(self, enabled):

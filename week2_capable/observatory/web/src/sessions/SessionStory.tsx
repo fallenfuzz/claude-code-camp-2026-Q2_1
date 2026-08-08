@@ -626,6 +626,21 @@ function StoryStepView({
       </CausalStep>
     );
   }
+  if (record.kind === "state_block") {
+    return (
+      <CausalStep
+        dot="input"
+        record={record}
+        selected={selectedRecordId === record.id}
+        title="What the agent was told"
+        subtitle="its situation, before it decided"
+        onSelect={() => onSelect({ turn, iteration, recordId: record.id })}
+      >
+        <pre className={cx("story-standing-block")}>{evidenceText(record)}</pre>
+        <EvidenceDetail record={record} sessionId={sessionId} />
+      </CausalStep>
+    );
+  }
   if (record.kind === "plan" || record.kind === "reasoning") {
     return (
       <CausalStep

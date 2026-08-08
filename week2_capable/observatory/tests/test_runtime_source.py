@@ -512,6 +512,12 @@ async def test_runtime_investigation_exposes_complete_model_exchange(
     with agent_log.open("a", encoding="utf-8") as handle:
         for event in (
             {
+                "phase": "state_block",
+                "text": "A Nexus - first time here\n  north -> not walked yet",
+                "at": "1970-01-01T00:00:01.500+00:00",
+                **identity,
+            },
+            {
                 "phase": "tool_call",
                 "id": "tool-use-1",
                 "name": "tbamud__look",
@@ -575,6 +581,12 @@ async def test_runtime_investigation_exposes_complete_model_exchange(
         for record in payload["records"]
         if record["source"] == "agent" and record["kind"] != "session_start"
     )
+    # What the agent was told is a record of its own, so it can be read
+    # without reconstructing it from the conversation.
+    told = by_kind["state_block"]
+    assert told["label"] == "What the agent was told"
+    assert "A Nexus - first time here" in told["fields"]["text"]
+
     # The system prompt appears once for the whole session, so it is carried
     # rather than withheld, and nothing else about session start is.
     start = by_kind["session_start"]["fields"]

@@ -107,6 +107,15 @@ class Logger:
     def limit_reached(self, kind: str, n: int, max: int | None) -> None:
         self._write_log({"phase": "limit_reached", "kind": kind, "n": n, "max": max})
 
+    def state_block(self, text: str) -> None:
+        """What the agent was told about its situation, this iteration.
+
+        The block is put in front of the model on every decision, so what it
+        held is what the agent can be relied on to have known. Recording it
+        beside the call is the only way to read that afterwards.
+        """
+        self._write_log({"phase": "state_block", "text": text})
+
     def state_block_failed(self, error: str) -> None:
         self._write_log({"phase": "state_block_failed", "error": error})
 

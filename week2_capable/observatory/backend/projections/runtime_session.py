@@ -193,6 +193,10 @@ def _agent_records(
             model_request = None
             provider_response = None
             parent = turn or root
+        elif phase == "state_block":
+            # What the agent was told before it decided, so it belongs with
+            # the iteration rather than with the request that carried it.
+            parent = iteration or turn or root
         elif phase == "prompt":
             prompt = record_id
             parent = iteration or turn or root
@@ -597,6 +601,8 @@ def _agent_label(event: dict[str, Any], phase: str) -> str:
         return f"Model request · {event.get('model') or 'unknown model'}"
     if phase == "provider_response":
         return f"Provider response · {event.get('model') or 'unknown model'}"
+    if phase == "state_block":
+        return "What the agent was told"
     if phase == "session_start":
         return "Session started"
     return phase.replace("_", " ").title()
