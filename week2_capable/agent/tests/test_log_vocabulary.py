@@ -118,6 +118,9 @@ def _write_everything(path: Path) -> Logger:
         iteration=2,
         instruction="Look east",
     )
+    logger.state_block_source(reason="built from tbamud__recall_state")
+    logger.state_block(text="A Nexus - first time here")
+    logger.state_block_failed(error="store unavailable")
     logger.limit_reached(kind="max_iterations", n=25, max=25)
     logger.raw(data={"anything": True})
     logger.turn_end(reason="max_iterations", iterations=25, tokens=2260,
