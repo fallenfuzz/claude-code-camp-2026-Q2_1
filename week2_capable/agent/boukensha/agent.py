@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from .tasks.base import Task
 
 
+#: Distinguishes "no block was passed" from "a block was built and is None".
+_UNSET: Any = object()
+
+
 class Agent:
     """Runs one turn of the conversation to completion."""
 
@@ -178,12 +182,20 @@ class Agent:
 
             self._iteration += 1
             self._logger.iteration(n=self._iteration, max=self._max_iterations)
+            volatile = self._volatile_state_message()
             self._logger.prompt(
-                messages=self._context.messages, tools=self._registry.tools,
+                messages=(
+                    [*self._context.messages, volatile]
+                    if volatile is not None
+                    else self._context.messages
+                ),
+                tools=self._registry.tools,
                 context_window=self._context.context_window,
             )
 
-            response, duration_ms = self._call_model(**self._call_opts())
+            response, duration_ms = self._call_model(
+                volatile=volatile, **self._call_opts()
+            )
             self._log_provider_response(response)
             self._logger.raw(data=response)
             parsed = self._builder.parse_response(response)
@@ -372,6 +384,7 @@ class Agent:
         return totals
 
     def _call_model(self, client: Any = None,
+                    volatile: Message | None = _UNSET,
                     **opts: Any) -> tuple[dict[str, Any], float]:
         """Call the model, returning the reply and its wall-clock milliseconds.
 
@@ -386,7 +399,8 @@ class Agent:
         it, which on a timeout is the largest number in the turn.
         """
         start = time.monotonic()
-        volatile = self._volatile_state_message()
+        if volatile is _UNSET:
+            volatile = self._volatile_state_message()
         if volatile is not None:
             self._context.messages.append(volatile)
         try:

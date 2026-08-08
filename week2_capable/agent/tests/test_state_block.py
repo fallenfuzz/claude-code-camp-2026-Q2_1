@@ -104,6 +104,9 @@ class TestVolatileStateBlock(unittest.TestCase):
         ]
         blocks = [event for event in recorded if event["phase"] == "state_block"]
         self.assertEqual(len(blocks), 1)
+        # The prompt record must state what was actually sent, block included.
+        prompts = [e for e in recorded if e["phase"] == "prompt"]
+        self.assertIn("[state]", json.dumps(prompts[0]["messages"]))
         self.assertIn("A Nexus, first time here", blocks[0]["text"])
         # What was recorded is what the model was sent.
         self.assertIn(blocks[0]["text"], json.dumps(transport.bodies[0]))
