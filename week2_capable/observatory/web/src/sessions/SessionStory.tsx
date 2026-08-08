@@ -305,6 +305,7 @@ export function SessionStory({
                 selection={selection}
                 selectedRef={selectedRef}
                 turns={chapterTurns}
+                nudges={epoch.nudges}
                 onOpenIterationsChange={setOpenIterations}
                 onOpenTurnsChange={setOpenTurns}
                 onSelect={onSelect}
@@ -323,6 +324,42 @@ export function SessionStory({
   );
 }
 
+type NudgeBreak = {
+  text: string;
+  at: string;
+  record: SessionEvidenceRecord;
+  iterations: StoryIteration[];
+};
+
+// A nudge that arrives while a turn is running interrupts it. The iterations
+// it caused belong under the nudge, and the ones before it stay with the turn.
+function splitAtNudges(
+  turn: StoryTurn,
+  nudges: StoryObjectiveEpoch["nudges"],
+): { kept: StoryIteration[]; breaks: NudgeBreak[] } {
+  const marks = nudges
+    .map((nudge) => ({ at: nudge.record.iteration, nudge }))
+    .filter((mark): mark is { at: number; nudge: typeof nudges[number] } => (
+      typeof mark.at === "number"
+    ))
+    .sort((left, right) => left.at - right.at);
+  let kept = turn.iterations;
+  const breaks: NudgeBreak[] = [];
+  for (const mark of marks) {
+    const index = kept.findIndex((iteration) => iteration.number >= mark.at);
+    if (index <= 0) continue;
+    const following = kept.slice(index);
+    kept = kept.slice(0, index);
+    breaks.push({
+      text: mark.nudge.instruction,
+      at: mark.nudge.record.at,
+      record: mark.nudge.record,
+      iterations: following,
+    });
+  }
+  return { kept, breaks };
+}
+
 function StoryTurns({
   investigation,
   openIterations,
@@ -330,6 +367,7 @@ function StoryTurns({
   selection,
   selectedRef,
   turns,
+  nudges,
   onOpenIterationsChange,
   onOpenTurnsChange,
   onSelect,
@@ -340,12 +378,14 @@ function StoryTurns({
   selection: SessionSelection;
   selectedRef: React.RefObject<HTMLElement | null>;
   turns: StoryTurn[];
+  nudges: StoryObjectiveEpoch["nudges"];
   onOpenIterationsChange: React.Dispatch<React.SetStateAction<Set<string>>>;
   onOpenTurnsChange: React.Dispatch<React.SetStateAction<Set<number>>>;
   onSelect: (selection: SessionSelection) => void;
 }) {
   return turns.map((turn) => {
     const open = openTurns.has(turn.number);
+    const { kept, breaks } = splitAtNudges(turn, nudges);
     return (
       <section
         aria-label={`Turn ${turn.number}`}
@@ -392,7 +432,7 @@ function StoryTurns({
             <ChevronRight className={cx("story-caret")} size={18} />
           </button>
         </h3>
-        {open ? turn.iterations.map((iteration) => (
+        {open ? kept.map((iteration) => (
           <StoryIterationCard
             investigation={investigation}
             iteration={iteration}
@@ -424,6 +464,54 @@ function StoryTurns({
               });
             }}
           />
+        )) : null}
+        {open ? breaks.map((entry) => (
+          <div className={cx("story-turn-nudge")} key={entry.record.id}>
+            <header>
+              <MessageSquareText size={17} />
+              <div>
+                <span className={cx("story-eyebrow")}>
+                  Nudge · applied {formatClock(entry.at, true)}
+                </span>
+                <strong>{sentenceCase(entry.text)}</strong>
+              </div>
+              <span>{entry.iterations.length} iteration
+                {entry.iterations.length === 1 ? "" : "s"}</span>
+            </header>
+            {entry.iterations.map((iteration) => (
+              <StoryIterationCard
+                investigation={investigation}
+                iteration={iteration}
+                key={iteration.id}
+                open={openIterations.has(iterationKey(
+                  iteration.turn,
+                  iteration.number,
+                ))}
+                selected={selection.turn === iteration.turn
+                  && selection.iteration === iteration.number}
+                selectedRecordId={selection.recordId}
+                selectedRef={selection.turn === iteration.turn
+                  && selection.iteration === iteration.number
+                  ? selectedRef
+                  : undefined}
+                onSelect={onSelect}
+                onToggle={() => {
+                  const key = iterationKey(iteration.turn, iteration.number);
+                  onOpenIterationsChange((current) => {
+                    const next = new Set(current);
+                    if (next.has(key)) next.delete(key);
+                    else next.add(key);
+                    return next;
+                  });
+                  onSelect({
+                    turn: iteration.turn,
+                    iteration: iteration.number,
+                    recordId: null,
+                  });
+                }}
+              />
+            ))}
+          </div>
         )) : null}
       </section>
     );
@@ -623,6 +711,21 @@ function StoryStepView({
             <Provenance record={record} />
           </div>
         </details>
+      </CausalStep>
+    );
+  }
+  if (record.kind === "guidance" || record.kind === "goal_revision") {
+    return (
+      <CausalStep
+        dot="signal"
+        record={record}
+        selected={selectedRecordId === record.id}
+        title={record.kind === "guidance" ? "You nudged the agent" : "You changed the goal"}
+        subtitle={`applied at iteration ${record.iteration ?? "unknown"}`}
+        onSelect={() => onSelect({ turn, iteration, recordId: record.id })}
+      >
+        <div className={cx("story-content-card")}>{evidenceText(record)}</div>
+        <EvidenceDetail record={record} sessionId={sessionId} />
       </CausalStep>
     );
   }

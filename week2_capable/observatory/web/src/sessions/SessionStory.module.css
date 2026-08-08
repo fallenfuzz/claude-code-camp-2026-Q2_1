@@ -967,3 +967,26 @@
   color: var(--session-text);
   white-space: pre-wrap;
 }
+
+.story-turn-nudge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--session-line);
+  background: var(--session-raised);
+}
+
+.story-turn-nudge header {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  color: var(--session-cyan);
+}
+
+.story-turn-nudge header strong {
+  display: block;
+  color: var(--session-text);
+}

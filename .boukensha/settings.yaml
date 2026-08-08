@@ -208,7 +208,7 @@ capabilities:
     # Off until a run proves what turning it on does. Absent behaves the same
     # as false, which is why the state block was never built and the authored
     # rules in rules.yaml reached no system prompt.
-    enabled: false
+    enabled: true
 
     # Below this share of maximum health, resting is suggested before going
     # on. The advice names the rule and the agent may overrule it.
