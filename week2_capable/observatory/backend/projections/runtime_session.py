@@ -712,6 +712,14 @@ def _agent_fields(event: dict[str, Any]) -> dict[str, Any]:
     return sanitize_evidence(carried)
 
 
+def _is_state_block(message: Any) -> bool:
+    if not isinstance(message, dict):
+        return False
+    content = message.get("content")
+    text = content if isinstance(content, str) else json.dumps(content)
+    return message.get("role") == "user" and text.lstrip('"[ ').startswith("state]")
+
+
 def _last_message(event: dict[str, Any]) -> dict[str, Any] | None:
     """Carry the final message so a collapsed prompt still reads.
 
@@ -721,7 +729,13 @@ def _last_message(event: dict[str, Any]) -> dict[str, Any] | None:
     messages = event.get("messages")
     if not isinstance(messages, list) or not messages:
         return None
-    last = messages[-1]
+    # The state block is appended last on every call and has a record of its
+    # own, so the preview stays on the conversation it was sent with.
+    conversation = [
+        message for message in messages
+        if not _is_state_block(message)
+    ] or messages
+    last = conversation[-1]
     if not isinstance(last, dict):
         return {"role": "message", "content": last}
     role = last.get("role")

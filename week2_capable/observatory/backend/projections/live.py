@@ -1624,6 +1624,10 @@ def _objective(events: list[dict[str, Any]]) -> str | None:
                                 "Authenticated operator guidance for the "
                                 "active objective:"
                             )
+                            # The state block is a user message appended to
+                            # every call. It describes the situation, never
+                            # the objective.
+                            and not text.startswith("[state]")
                         ):
                             return text
     return None

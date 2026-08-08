@@ -581,6 +581,12 @@ async def test_runtime_investigation_exposes_complete_model_exchange(
         for record in payload["records"]
         if record["source"] == "agent" and record["kind"] != "session_start"
     )
+    # The block is the last message on every call, and it must not take the
+    # preview from the conversation it was sent with.
+    assert "state]" not in json.dumps(
+        by_kind["prompt"]["fields"]["last_message"]
+    )
+
     # What the agent was told is a record of its own, so it can be read
     # without reconstructing it from the conversation.
     told = by_kind["state_block"]
@@ -1752,6 +1758,15 @@ async def test_operator_guidance_and_revised_goal_are_visible_evidence(
                                 {
                                     "type": "text",
                                     "text": "Find and fight Fido",
+                                }
+                            ],
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "[state]\nA Nexus - first time here",
                                 }
                             ],
                         },
