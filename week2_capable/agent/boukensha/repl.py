@@ -77,6 +77,8 @@ class Repl:
                  max_turn_tokens: int | None = None,
                  max_turn_cost: float | None = None,
                  config_dir: str | None = None,
+                 state_block_source: Any = None,
+                 campaign_line_source: Any = None,
                  provider: str | None = None,
                  model: str | None = None,
                  version: str | None = None,
@@ -106,6 +108,11 @@ class Repl:
         self._max_turn_tokens = max_turn_tokens
         self._max_turn_cost = max_turn_cost
         self._config_dir = config_dir
+        #: What the agent is told about its situation, rendered fresh for
+        #: every model call. Absent here, a launched session ran with no
+        #: state block at all whatever the knowledge flag said.
+        self._state_block_source = state_block_source
+        self._campaign_line_source = campaign_line_source
         self._provider = provider
         self._model = model
         self._version = version
@@ -403,6 +410,8 @@ class Repl:
             cancel_event=self._cancel_event,
             logger=self._logger,
             operator=self._operator,
+            state_block_source=self._state_block_source,
+            campaign_line_source=self._campaign_line_source,
         )
         # Forwarded only when set, so a step whose Agent has no such parameter
         # (everything before the context step) is unaffected.

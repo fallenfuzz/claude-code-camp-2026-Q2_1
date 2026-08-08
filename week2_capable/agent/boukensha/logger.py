@@ -393,16 +393,30 @@ class Logger:
         try:
             self._log_io.flush()
             records = self._path.read_text(encoding="utf-8").splitlines()
-            if len(records) != 1:
+            if not records:
                 return False
             start = json.loads(records[0])
             if not isinstance(start, dict) or start.get("phase") != "session_start":
                 return False
+            # Still idle means no turn has begun, not that nothing else has
+            # been recorded. Setup notes may precede the first turn.
+            for line in records[1:]:
+                try:
+                    following = json.loads(line)
+                except json.JSONDecodeError:
+                    return False
+                if following.get("phase") == "turn":
+                    return False
             start["objective"] = dict(objective)
             self._log_io.seek(0)
             self._log_io.truncate()
+            # Everything after the start record is rewritten unchanged. Only
+            # the start record is being completed.
             self._log_io.write(
-                json.dumps(start, separators=(",", ":"), default=str) + "\n"
+                "\n".join([
+                    json.dumps(start, separators=(",", ":"), default=str),
+                    *records[1:],
+                ]) + "\n"
             )
             self._log_io.flush()
             return True

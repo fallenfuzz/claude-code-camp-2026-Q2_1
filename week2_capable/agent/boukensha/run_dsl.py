@@ -566,6 +566,12 @@ def repl(*,
             operator=operator,
             input=input,
             output=output,
+            state_block_source=_state_block_source(
+                assembled.config, assembled.registry, logger,
+            ),
+            campaign_line_source=_campaign_line_source(
+                assembled.config, assembled.registry,
+            ),
         )
         try:
             if tui:
