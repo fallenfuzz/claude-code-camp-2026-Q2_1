@@ -148,7 +148,7 @@ export function projectSessionStory(
     .filter((message) => message.action === "revise")
     .map((message) => message.record);
   const iterationGroups = new Map<string, SessionEvidenceRecord[]>();
-  for (const record of records) {
+  for (const record of scopeEarlyReads(records)) {
     if (record.turn === null || record.iteration === null) continue;
     const key = iterationKey(record.turn, record.iteration);
     const group = iterationGroups.get(key) ?? [];
@@ -224,6 +224,36 @@ export function projectSessionStory(
       iteration,
     ])),
   };
+}
+
+function scopeEarlyReads(
+  records: SessionEvidenceRecord[],
+): SessionEvidenceRecord[] {
+  // The observer reads the room number when the character arrives, which for
+  // the first room is before any iteration exists. Such a read belongs to the
+  // iteration it precedes, or it belongs nowhere and the first room shows no
+  // number.
+  const ordered = [...records].sort(compareRecords);
+  let pending: SessionEvidenceRecord[] = [];
+  const scoped: SessionEvidenceRecord[] = [];
+  for (const record of ordered) {
+    if (record.kind === "room_number" && record.iteration === null) {
+      pending.push(record);
+      continue;
+    }
+    if (pending.length > 0 && record.iteration !== null) {
+      for (const early of pending) {
+        scoped.push({
+          ...early,
+          turn: record.turn,
+          iteration: record.iteration,
+        });
+      }
+      pending = [];
+    }
+    scoped.push(record);
+  }
+  return [...scoped, ...pending];
 }
 
 function projectIteration(
