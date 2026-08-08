@@ -47,7 +47,8 @@ class Logger:
         "model_request", "provider_response", "response", "tool_call",
         "tool_result", "reasoning", "plan",
         "compaction", "retry", "turn_end", "raw", "log_error",
-        "operator_control",
+        "operator_control", "state_block", "state_block_source",
+        "state_block_failed",
     )
 
     def __init__(self, session_id: str | None = None, dir: str | Path | None = None,
@@ -106,6 +107,10 @@ class Logger:
 
     def limit_reached(self, kind: str, n: int, max: int | None) -> None:
         self._write_log({"phase": "limit_reached", "kind": kind, "n": n, "max": max})
+
+    def state_block_source(self, reason: str) -> None:
+        """Whether the block has a source at all, and why not when it has none."""
+        self._write_log({"phase": "state_block_source", "reason": reason})
 
     def state_block(self, text: str) -> None:
         """What the agent was told about its situation, this iteration.

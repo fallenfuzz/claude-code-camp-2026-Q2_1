@@ -348,22 +348,33 @@ def _gateway_text(result: Any) -> str | None:
     return text or None
 
 
-def _state_block_source(cfg, registry: Registry):
+def _state_block_source(cfg, registry: Registry, logger=None):
     """The knowledge state-block fetcher, or None when the flag is off.
 
     The block is served by the gateway's recall_state tool, whichever
     prefixed name it registered under. A configured flag with no such tool
     yields None rather than a broken agent.
+
+    Whether a source was built is recorded, because a block that is never
+    fetched and a block that is fetched and empty look identical in a
+    session afterwards.
     """
+    def note(reason: str) -> None:
+        if logger is not None:
+            logger.state_block_source(reason)
+
     if cfg is None or not cfg.capability("knowledge"):
+        note("knowledge capability off")
         return None
     names = [
         name for name in registry.tools
         if name == "recall_state" or name.endswith("_recall_state")
     ]
     if not names:
+        note(f"no recall_state tool among {sorted(registry.tools)}")
         return None
     tool_name = names[0]
+    note(f"built from {tool_name}")
 
     def fetch() -> str | None:
         return _gateway_text(registry.dispatch(tool_name))
@@ -460,7 +471,7 @@ def run(task: str, *,
             logger=logger,
             operator=operator,
             state_block_source=_state_block_source(
-                assembled.config, assembled.registry,
+                assembled.config, assembled.registry, logger,
             ),
             campaign_line_source=_campaign_line_source(
                 assembled.config, assembled.registry,
