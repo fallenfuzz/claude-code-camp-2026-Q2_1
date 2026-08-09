@@ -188,6 +188,7 @@ describe("map camera geometry", () => {
       bent: false,
       oneWay: false,
     hop: false,
+    walked: false,
     }];
 
     expect(isContinuousMapTransition(graph, "current", "hidden")).toBe(true);

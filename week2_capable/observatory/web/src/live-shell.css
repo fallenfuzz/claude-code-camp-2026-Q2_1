@@ -470,7 +470,6 @@
   fill: none;
   stroke: #4fd6c9;
   stroke-width: 1.6;
-  vector-effect: non-scaling-stroke;
 }
 
 .live-cost-sparkline > span {
@@ -955,7 +954,6 @@
   stroke: var(--color-map-link);
   stroke-linecap: round;
   stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
 }
 
 .live-map-link.is-hop path {
@@ -999,20 +997,15 @@
 .live-map-frontier path {
   fill: none;
   stroke: currentColor;
-  stroke-dasharray: 3 4;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-.live-map-frontier circle {
-  fill: currentColor;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+  stroke-width: 1.5;
 }
 
 .live-map-room rect {
   fill: var(--color-map-room);
   stroke: var(--color-map-room-line);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+  stroke-width: 1.4;
 }
 
 .live-map-room.is-sector-field rect,
@@ -1058,8 +1051,8 @@
 }
 
 .live-map-room.is-sector-water rect {
-  fill: var(--color-map-current);
-  stroke: var(--color-map-current-line);
+  fill: var(--color-map-water);
+  stroke: var(--color-map-water-line);
 }
 
 .live-map-room.is-sector-semantic-water rect {
@@ -1117,7 +1110,7 @@
 .live-map-room.is-current rect {
   fill: var(--color-map-current);
   stroke: var(--color-map-current-line);
-  stroke-width: 2;
+  stroke-width: 2.4;
 }
 
 .live-map-room.is-combat rect {
@@ -1164,7 +1157,6 @@
   fill: var(--color-raised);
   stroke: var(--color-map-room-line);
   stroke-width: 1;
-  vector-effect: non-scaling-stroke;
 }
 
 .live-map-visit-badge text {
@@ -1178,7 +1170,6 @@
 }
 
 .live-map-content-badge circle {
-  vector-effect: non-scaling-stroke;
 }
 
 .live-map-content-badge text {
@@ -1208,7 +1199,7 @@
 }
 
 .live-map-room.is-current .live-map-room-title {
-  fill: var(--color-text);
+  fill: var(--color-cyan);
   font-weight: 600;
 }
 
@@ -1234,7 +1225,8 @@
 }
 
 .live-current-room-glow {
-  fill: url("#live-current-room-glow");
+  fill: var(--color-cyan);
+  opacity: .1;
   pointer-events: none;
 }
 
@@ -1246,7 +1238,6 @@
     drop-shadow(0 0 5px rgb(93 180 255 / 28%))
     drop-shadow(0 0 11px rgb(93 180 255 / 16%));
   pointer-events: none;
-  vector-effect: non-scaling-stroke;
 }
 
 .live-map-room {
@@ -3058,7 +3049,6 @@
   opacity: .55;
   stroke: var(--color-cyan);
   stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
 }
 
 .live-map-agent-trail {
@@ -3066,5 +3056,4 @@
   stroke: var(--color-cyan);
   stroke-linecap: round;
   stroke-width: 3.2;
-  vector-effect: non-scaling-stroke;
 }

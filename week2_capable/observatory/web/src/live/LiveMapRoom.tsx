@@ -95,11 +95,13 @@ export const LiveMapRoom = memo(function LiveMapRoom({
     >
       <title>{identityLabel}</title>
       {current ? (
-        <circle
+        <rect
           className="live-current-room-glow"
-          cx={mapRoomWidth / 2}
-          cy={mapRoomHeight / 2}
-          r="48"
+          height={mapRoomHeight + 18}
+          rx="16"
+          width={mapRoomWidth + 18}
+          x="-9"
+          y="-9"
         />
       ) : null}
       {selected ? (
@@ -112,7 +114,7 @@ export const LiveMapRoom = memo(function LiveMapRoom({
           y="-6"
         />
       ) : null}
-      <rect width={mapRoomWidth} height={mapRoomHeight} rx="10" />
+      <rect width={mapRoomWidth} height={mapRoomHeight} rx="8" />
       {verticalMarkers.map((marker) => (
         <text
           className={[

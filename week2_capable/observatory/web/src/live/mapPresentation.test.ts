@@ -116,6 +116,7 @@ function connection(
     bent: false,
     oneWay: false,
     hop: false,
+    walked: false,
   };
 }
 

@@ -20,7 +20,6 @@ export const LiveMapFrontier = memo(function LiveMapFrontier({
           `L ${marker.end.x} ${marker.end.y}`,
         ].join(" ")}
       />
-      <circle cx={marker.end.x} cy={marker.end.y} r="2.5" />
     </g>
   );
 });

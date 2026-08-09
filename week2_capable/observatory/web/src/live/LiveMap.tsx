@@ -994,13 +994,12 @@ function roomEdge(from: MapPoint, to: MapPoint): MapPoint {
 }
 
 function bentPath(source: MapPoint, target: MapPoint): string {
+  const bow = Math.hypot(target.x - source.x, target.y - source.y) * 0.16 + 10;
   const middleX = (source.x + target.x) / 2;
   const middleY = (source.y + target.y) / 2;
-  const deltaX = target.x - source.x;
-  const deltaY = target.y - source.y;
-  const length = Math.max(Math.hypot(deltaX, deltaY), 1);
-  const controlX = middleX - (deltaY / length) * 34;
-  const controlY = middleY + (deltaX / length) * 34;
+  const straightDown = source.x === target.x;
+  const controlX = middleX + (straightDown ? bow : 0);
+  const controlY = middleY + (straightDown ? 0 : bow);
   return `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`;
 }
 
