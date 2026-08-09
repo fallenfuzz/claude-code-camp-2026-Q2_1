@@ -161,7 +161,7 @@ describe("map camera geometry", () => {
       center: { x: 0, y: 100 },
       velocity: { x: 0, y: 0 },
     };
-    for (let frame = 0; frame < 120; frame += 1) {
+    for (let frame = 0; frame < 300; frame += 1) {
       motion = stepCriticallyDampedMapCenter(
         motion,
         { x: 80, y: 20 },

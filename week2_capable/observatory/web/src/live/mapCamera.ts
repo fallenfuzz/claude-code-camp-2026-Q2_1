@@ -276,14 +276,14 @@ export function stepCriticallyDampedMapCenter(
   motion: MapCameraMotion,
   target: MapPoint,
   deltaSeconds: number,
-  responseSeconds = 0.28,
+  responseSeconds = 0.6,
 ): MapCameraMotion {
   const safeDelta = Math.max(
     Number.isFinite(deltaSeconds) ? deltaSeconds : 0,
     0,
   );
   const safeResponse = Math.max(
-    Number.isFinite(responseSeconds) ? responseSeconds : 0.28,
+    Number.isFinite(responseSeconds) ? responseSeconds : 0.6,
     0.01,
   );
   const x = dampAxis(

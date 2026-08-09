@@ -39,6 +39,7 @@ import {
   type MapCameraView,
   type MapSafeInsets,
 } from "./mapCamera";
+import { LiveMapAgent } from "./LiveMapAgent";
 import { LiveMapFrontier } from "./LiveMapFrontier";
 import { LiveMapLegend } from "./LiveMapLegend";
 import { LiveMapRoom } from "./LiveMapRoom";
@@ -168,6 +169,25 @@ export function LiveMap({
   const presentation = useMemo(() => {
     return projectMapPresentation(graph, mode, selectedRoomId);
   }, [graph, mode, selectedRoomId]);
+  const agentPoint = useMemo(() => {
+    return graph.rooms.find(({ node }) => {
+      return node.id === graph.currentRoomId;
+    })?.point ?? null;
+  }, [graph.currentRoomId, graph.rooms]);
+  // The room it came from, kept only while the step is worth animating: a
+  // move to somewhere already on the map, not the first room of a session
+  // and not a jump to a room the map has never drawn.
+  const walkedFromRef = useRef<MapPoint | null>(null);
+  const lastAgentRoomRef = useRef<string | null>(null);
+  const lastAgentPointRef = useRef<MapPoint | null>(null);
+  if (graph.currentRoomId !== lastAgentRoomRef.current) {
+    walkedFromRef.current = lastAgentRoomRef.current === null
+      ? null
+      : lastAgentPointRef.current;
+    lastAgentRoomRef.current = graph.currentRoomId;
+    lastAgentPointRef.current = agentPoint;
+  }
+  const walkedFrom = walkedFromRef.current;
   const lanternOpacities = useMemo(() => {
     return projectLanternOpacities(graph);
   }, [graph]);
@@ -883,6 +903,7 @@ export function LiveMap({
             )];
           })}
         </g>
+        <LiveMapAgent from={walkedFrom} to={agentPoint} />
       </svg>
       {inspector === null ? null : (
         <LiveRoomInspector

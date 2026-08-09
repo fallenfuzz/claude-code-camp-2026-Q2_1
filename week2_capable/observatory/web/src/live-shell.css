@@ -3033,3 +3033,25 @@
     max-height: min(55%, 420px);
   }
 }
+
+/* The agent, taken from the mockup: a figure that walks the link with the
+   link lighting up behind it. */
+.live-map-agent .figure {
+  fill: var(--color-cyan);
+}
+
+.live-map-agent .ring {
+  fill: none;
+  opacity: .55;
+  stroke: var(--color-cyan);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.live-map-agent-trail {
+  fill: none;
+  stroke: var(--color-cyan);
+  stroke-linecap: round;
+  stroke-width: 3.2;
+  vector-effect: non-scaling-stroke;
+}

@@ -123,8 +123,8 @@ export const LiveMapRoom = memo(function LiveMapRoom({
           data-direction={marker.direction}
           data-state={marker.state}
           key={marker.direction}
-          x="10"
-          y={marker.direction === "up" ? 15 : mapRoomHeight - 7}
+          x={mapRoomWidth - 12}
+          y={marker.direction === "up" ? 16 : mapRoomHeight - 6}
         >
           {marker.direction === "up" ? "▲" : "▼"}
         </text>
