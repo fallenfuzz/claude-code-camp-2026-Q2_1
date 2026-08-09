@@ -4,6 +4,11 @@ import type {
   WorldRoomDescription,
   WorldSighting,
 } from "../contracts";
+import {
+  emptyRoomLayout,
+  squareOf,
+  type RoomLayout,
+} from "./roomLayout";
 
 export type MapPoint = {
   x: number;
@@ -92,24 +97,95 @@ const directionAliases: Record<string, string> = {
 export function buildMapGraph(
   nodes: WorldNode[],
   edges: WorldEdge[],
+  world: RoomLayout = emptyRoomLayout,
 ): MapGraph {
-  return buildMapGraphWithLayout(nodes, edges, "evidence");
+  return buildMapGraphWithLayout(nodes, edges, "evidence", world);
 }
 
 export function reflowMapGraph(
   nodes: WorldNode[],
   edges: WorldEdge[],
+  world: RoomLayout = emptyRoomLayout,
 ): MapGraph {
-  return buildMapGraphWithLayout(nodes, edges, "topology");
+  return buildMapGraphWithLayout(nodes, edges, "topology", world);
+}
+
+/**
+ * The floor to draw: the one the agent is standing on, or failing that the
+ * one most of the known rooms are on.
+ *
+ * Two floors are separate grids whose origins mean nothing to each other,
+ * so they cannot share a picture. The agent is only ever on one.
+ */
+function currentFloor(
+  nodes: WorldNode[],
+  world: RoomLayout,
+): string | null {
+  const floorOf = (node: WorldNode) => {
+    const square = squareOf(world, node);
+    return square === null ? null : `${square.zone}:${square.level}`;
+  };
+  const standing = nodes.find(({ state }) => state === "current");
+  if (standing !== undefined) {
+    const floor = floorOf(standing);
+    if (floor !== null) return floor;
+  }
+  const seen = new Map<string, number>();
+  for (const node of nodes) {
+    const floor = floorOf(node);
+    if (floor !== null) seen.set(floor, (seen.get(floor) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  for (const [floor, count] of seen) {
+    if (best === null || count > (seen.get(best) ?? 0)) best = floor;
+  }
+  return best;
+}
+
+/**
+ * The squares the world itself gives, for the rooms on the floor being
+ * drawn. A room's position is a fact about the world, not about the order
+ * the agent happened to find it in, so it is looked up rather than derived.
+ */
+function fixedRooms(
+  nodes: WorldNode[],
+  world: RoomLayout,
+  floor: string | null,
+): Map<string, MapPoint> | null {
+  if (world.rooms === 0 || floor === null) return null;
+  const points = new Map<string, MapPoint>();
+  for (const node of nodes) {
+    const square = squareOf(world, node);
+    if (square === null) continue;
+    if (`${square.zone}:${square.level}` !== floor) continue;
+    points.set(node.id, { x: square.x, y: square.y });
+  }
+  return points.size === 0 ? null : points;
+}
+
+/** Whether a room belongs on the floor being drawn. */
+function onFloor(node: WorldNode, world: RoomLayout, floor: string): boolean {
+  const square = squareOf(world, node);
+  return square !== null && `${square.zone}:${square.level}` === floor;
 }
 
 function buildMapGraphWithLayout(
   nodes: WorldNode[],
   edges: WorldEdge[],
   layout: "evidence" | "topology",
+  world: RoomLayout,
 ): MapGraph {
   const canonical = canonicalizeAtlasRooms(nodes, edges);
-  const orderedNodes = [...canonical.nodes].sort(compareNodes);
+  const everything = [...canonical.nodes].sort(compareNodes);
+  // The world's squares are used only when it has one for every room the
+  // map knows. A room without one cannot be placed beside rooms that have
+  // one, so a partial answer would be worse than the old walk.
+  const allPlaced = everything.length > 0
+    && everything.every((node) => squareOf(world, node) !== null);
+  const floor = allPlaced ? currentFloor(everything, world) : null;
+  const orderedNodes = floor === null
+    ? everything
+    : everything.filter((node) => onFloor(node, world, floor));
   if (orderedNodes.length === 0) {
     return {
       rooms: [],
@@ -124,9 +200,10 @@ function buildMapGraphWithLayout(
 
   const nodeIds = new Set(orderedNodes.map(({ id }) => id));
   const evidence = aggregateConnections(canonical.edges, nodeIds);
-  const points = layout === "topology"
-    ? reflowRooms(orderedNodes, evidence)
-    : placeRooms(orderedNodes, evidence);
+  const points = fixedRooms(orderedNodes, world, floor)
+    ?? (layout === "topology"
+      ? reflowRooms(orderedNodes, evidence)
+      : placeRooms(orderedNodes, evidence));
   const gridPoints = [...points.values()];
   const minimumX = Math.min(...gridPoints.map(({ x }) => x));
   const minimumY = Math.min(...gridPoints.map(({ y }) => y));

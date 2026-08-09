@@ -66,6 +66,7 @@ import {
   type MapOverlayRect,
 } from "./mapPresentation";
 import { mapRoomFootprint } from "./mapRoomFootprint";
+import { useRoomLayout } from "./useRoomLayout";
 import {
   projectRoomInspector,
   type RoomInspectorProjection,
@@ -149,13 +150,14 @@ export function LiveMap({
   const followInitializedRef = useRef(false);
   const previousCurrentRoomIdRef = useRef<string | null>(null);
 
+  const world = useRoomLayout();
   const graph = useMemo(() => {
     const nodes = snapshot?.world.nodes ?? [];
     const edges = snapshot?.world.edges ?? [];
     return reflowRevision === 0
-      ? buildMapGraph(nodes, edges)
-      : reflowMapGraph(nodes, edges);
-  }, [reflowRevision, snapshot]);
+      ? buildMapGraph(nodes, edges, world)
+      : reflowMapGraph(nodes, edges, world);
+  }, [reflowRevision, snapshot, world]);
   const evidenceMarkers = useMemo(() => {
     return projectMapEvidence(
       snapshot?.world.nodes ?? [],
@@ -878,6 +880,7 @@ export function LiveMap({
     const nextGraph = reflowMapGraph(
       snapshot.world.nodes,
       snapshot.world.edges,
+      world,
     );
     const nextCenter = roomCenter(
       nextGraph,
