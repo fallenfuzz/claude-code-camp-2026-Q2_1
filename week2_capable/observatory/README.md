@@ -199,6 +199,19 @@ ordinary non-experiment runs. Story, Map, Cost, and Ask share one selection.
   record at a time, on the reader's press rather than on expanding a section.
   The story carries every other field, so the response is a fraction of its
   former size without losing a step.
+- The session start card carries the standing instructions the model was given,
+  collapsed, so the rules behind every later decision are readable in one place
+  rather than only inside a request body.
+- A room is named by the game's own number as well as its title, so several
+  rooms sharing a title stay distinct. The number a session opens in is
+  attributed to the iteration it precedes.
+- The state block the agent is handed before each model call has its own
+  record, titled by what it is: what the agent was told. It never reads as the
+  objective, and its absence is recorded as plainly as its content.
+- A tool result carries how it was presented and how much of it was cut, so a
+  reply the model saw in part is never mistaken for one it saw whole.
+- A nudge that arrives mid-turn contains the iterations it interrupted, rather
+  than sitting beside the turn it changed.
 - Missing historical bodies stay explicit as capture gaps.
 - Ask defaults to the complete session and cites retained lifecycle or record
   evidence. A selected-record boundary is explicit and optional.
