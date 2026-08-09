@@ -1,0 +1,122 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Player knowledge, proposed</title>
+<style>
+  :root {
+    --bg: #0a0e12; --raised: #10161c; --line: #1e2830;
+    --text: #dfe7ee; --muted: #8b9aa7; --cyan: #4fd1c5; --amber: #f0b429;
+    --dead: #6b7580;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 22px 24px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.03em; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; }
+  .danger { border: 1px solid #5a2a2a; color: #ff9a90; background: transparent;
+            border-radius: 10px; padding: 8px 13px; cursor: pointer; }
+  .metrics { display: flex; gap: 10px; margin: 18px 0 22px; flex-wrap: wrap; }
+  .metric { border: 1px solid var(--line); border-radius: 12px;
+            background: var(--raised); padding: 11px 15px; min-width: 132px; }
+  .metric b { display: block; font-size: 22px; }
+  .metric span { color: var(--muted); font-size: 11px; text-transform: uppercase;
+                 letter-spacing: .08em; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--raised); color: var(--muted);
+         border-radius: 10px; padding: 7px 13px; cursor: pointer; }
+  .tab.on { color: var(--cyan); border-color: #2c4a4a; }
+  .pane { border: 1px solid var(--line); border-radius: 14px; background: var(--raised);
+          overflow: hidden; }
+  .paneHead { display: flex; justify-content: space-between; padding: 12px 15px;
+              border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  .scroll { max-height: 420px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { position: sticky; top: 0; background: var(--raised); text-align: left;
+       padding: 9px 15px; color: var(--muted); font-weight: 500; font-size: 11px;
+       text-transform: uppercase; letter-spacing: .07em;
+       border-bottom: 1px solid var(--line); }
+  td { padding: 9px 15px; border-bottom: 1px solid #161d24; }
+  tr:hover td { background: #131a21; }
+  .vnum { color: var(--cyan); font-variant-numeric: tabular-nums; }
+  .pill { font-size: 11px; border: 1px solid var(--line); border-radius: 999px;
+          padding: 2px 8px; color: var(--muted); }
+  .frontier { color: var(--amber); }
+  .deadNote { padding: 15px; color: var(--dead); }
+  .deadNote b { color: var(--text); }
+</style>
+<div class="page">
+  <div class="head">
+    <div>
+      <h1>Player knowledge</h1>
+      <p class="sub">What elenor will believe on the next run.</p>
+    </div>
+    <button class="danger">Reset this player's knowledge…</button>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><span>Rooms known</span><b>99</b></div>
+    <div class="metric"><span>Ways not walked</span><b class="frontier">41</b></div>
+    <div class="metric"><span>Things seen</span><b>148</b></div>
+    <div class="metric"><span>About the character</span><b>17</b></div>
+    <div class="metric"><span>No longer used</span><b style="color:var(--dead)">285</b></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on">The map · 99</button>
+    <button class="tab">What lives where · 148</button>
+    <button class="tab">The character · 17</button>
+    <button class="tab">No longer used · 285</button>
+  </div>
+
+  <div class="pane">
+    <div class="paneHead">
+      <span>Every room the game named, keyed by its own number</span>
+      <span>3 visited more than once</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Room</th><th>Name</th><th>Ways out</th><th>Visits</th><th>Last seen</th></tr></thead>
+        <tbody>
+          <tr><td class="vnum">#3001</td><td>The Temple Of Midgaard</td>
+              <td>n e s w d</td><td>3</td><td>2 runs ago</td></tr>
+          <tr><td class="vnum">#3005</td><td>The Temple Square</td>
+              <td>n e s w <span class="frontier">· 1 not walked</span></td><td>2</td><td>this run</td></tr>
+          <tr><td class="vnum">#18600</td><td>The Entrance To The Newbie Zone</td>
+              <td>n w</td><td>1</td><td>this run</td></tr>
+          <tr><td class="vnum">#3061</td><td>The Great Field Of Midgaard</td>
+              <td>n e s w <span class="frontier">· 2 not walked</span></td><td>4</td><td>this run</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:22px">The other tabs, sketched</p>
+  <div class="pane">
+    <div class="paneHead"><span>What lives where</span><span>148 seen, 0 confirmed gone</span></div>
+    <table>
+      <thead><tr><th>Name</th><th>Kind</th><th>Where</th><th>Seen</th></tr></thead>
+      <tbody>
+        <tr><td>Dummy the Implementor</td><td><span class="pill">creature</span></td>
+            <td class="vnum">#3001</td><td>3 runs ago</td></tr>
+        <tr><td>a loaf of bread</td><td><span class="pill">object</span></td>
+            <td class="vnum">#3010</td><td>this run</td></tr>
+      </tbody>
+    </table>
+    <div class="deadNote">
+      <b>Nothing here expires.</b> A creature killed last run is still listed.
+      The agent is told what is in the room from this, so a stale line sends it
+      after something that is not there.
+    </div>
+  </div>
+
+  <div class="pane" style="margin-top:14px">
+    <div class="paneHead"><span>No longer used</span><span>285 facts</span></div>
+    <div class="deadNote">
+      <b>Recorded before rooms were identified by the game's own number.</b>
+      Nothing reads these: the map, the recall tool and the state block all skip
+      them. They are shown so the count is honest, and they are what "Reset" clears
+      first.
+    </div>
+  </div>
+</div>
