@@ -576,6 +576,51 @@ work is for, is indistinguishable from a requirement once it is written
 down, and it will be paid for out of whatever is not being measured. The
 hang was fixed by not asking, not by making the answer smaller.
 
+### 14. The agent was told what it could see, and it stopped wandering
+
+Until this run the agent was handed a goal and a set of tools and left to
+work out its situation from whatever the last command printed. Watching
+it, the behaviour was always the same: it walked. Of 143 decisions in one
+earlier run, 109 were a move. It never fought anything, never bought
+anything, never consulted what it had already learned.
+
+The idea was to put a short description of the situation in front of it
+before every decision: the room and how often it had been there, each way
+out and whether that way had been walked, what was standing in the room,
+its own health and money and whether it was hungry, how much of the world
+it had mapped, and anything it had noted itself. Written fresh each time,
+never accumulated, so it can never describe a moment that has passed.
+
+The first run with it reads differently from every run before it. Moves
+fell from three quarters of all actions to about a third. It sized up a
+creature before fighting, attacked, and fled when the fight turned. It
+bought, it ate, and it asked itself what it already knew. None of those
+had happened once in any earlier run. The world it had mapped grew from
+eight rooms to eighteen.
+
+It also failed, in a way worth keeping. Every one of the thirty eight
+descriptions ended with the same two lines: you are hungry, you are
+thirsty, and nothing recovers while that lasts. True, and useless. The
+character had no money and nothing to eat, so there was no action that
+would clear either line. The agent spent the run trying anyway, and its
+last three thoughts are almost word for word the same sentence about
+being stuck. It never looked for the guild it had been sent to find.
+
+Advice that cannot be acted on is not advice, and repeating it thirty
+eight times does not make it truer. What the description needs is a sense
+of what the agent can actually do about what it is being told.
+
+The second failure was in the bill. The run cost twenty nine times more
+per decision than the one before it, and ended by hitting its money
+ceiling after thirty seven decisions rather than running out of steps.
+The cause is that the model provider charges much less for a request
+whose opening is identical to the last one, and the description, being
+different every time, was placed at the very end where the reuse marker
+sits. Every request therefore looked new. The fix is to move the marker
+to the last part that does not change, and the lesson is that where you
+put something in a request is a cost decision as much as an attention
+one.
+
 ## Technical Conclusions
 
 - Repeated identical attempts did fail in a stable pattern, and that

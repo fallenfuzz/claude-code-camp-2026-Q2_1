@@ -322,3 +322,35 @@ Room identity, the Observatory and the workspace are infrastructure and
 move none of that. F10 combat, F12 the leveling loop, F13 equipment and
 economy, and F14 verified plan conditions are unstarted, and they are
 what the mission fails on.
+
+## The state block reached the model, and what it cost
+
+First run in which the block was built and delivered: 38 blocks across 38
+model calls, from the tool the gateway registers for it.
+
+| Measure | Before | With the block |
+| --- | ---: | ---: |
+| Iterations | 143 | 37 |
+| `move` share of tool calls | 109 of 143 | 15 of 43 |
+| Combat calls | 0 | attack 6, consider 2, flee 2 |
+| Knowledge calls | 0 | recall 3, note_state 1 |
+| Economy calls | 0 | shop 3, consume_item 2 |
+| Rooms mapped | | 8 to 18 |
+| Cost per iteration | $0.00048 | $0.0141 |
+| Ended on | step limit | cost limit |
+
+Two failures measured alongside the change.
+
+- The readiness advice was unactionable and constant. All 38 blocks
+  carried "you are hungry" and "you are thirsty", the character had no
+  money and no food, and the run ended without approaching its goal.
+- Prompt caching collapsed. `cache_read_input_tokens` is 0 on every call
+  and `cache_creation_input_tokens` about 14,000, against an 88 percent
+  cache hit in the previous run. The block is the last message and the
+  reuse marker sits at the end of the request, so every request looked
+  new.
+
+Why the block had never appeared before: the launcher runs the agent
+through the interactive loop, and that path built its agent without the
+block's source. Only the one-shot path passed it. The capability flag,
+the tool registration and the gateway were all correct and irrelevant.
