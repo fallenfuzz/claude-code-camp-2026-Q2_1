@@ -9,7 +9,10 @@ import {
   mapRoomWidth,
   type MapPoint,
 } from "./mapModel";
-import { truncateMapRoomTitle } from "./mapRoomFootprint";
+import {
+  mapRoomPadding,
+  truncateMapRoomTitle,
+} from "./mapRoomFootprint";
 import type { VerticalMarker } from "./markerProjection";
 
 type Props = {
@@ -165,20 +168,20 @@ export const LiveMapRoom = memo(function LiveMapRoom({
         </g>
       ) : null}
       <text
+        className="live-map-room-title"
+        x={mapRoomPadding}
+        y={mapRoomHeight / 2 - 1}
+      >
+        {truncateMapRoomTitle(node.title)}
+      </text>
+      <text
         className="live-map-room-debug-id"
-        x={mapRoomWidth / 2}
-        y={mapRoomHeight / 2 + 4}
+        x={mapRoomPadding}
+        y={mapRoomHeight / 2 + 13}
       >
         {node.atlas === null || node.atlas === undefined
           ? `p${node.place}`
           : `#${node.atlas.vnum}`}
-      </text>
-      <text
-        className="live-map-room-title"
-        x={mapRoomWidth / 2}
-        y={current ? -14 : mapRoomHeight + 18}
-      >
-        {truncateMapRoomTitle(node.title)}
       </text>
     </g>
   );

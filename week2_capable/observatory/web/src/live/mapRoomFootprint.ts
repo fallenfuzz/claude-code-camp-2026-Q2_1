@@ -14,48 +14,41 @@ export type MapRoomFootprint = {
 
 export const mapRoomTitleCharacterLimit = 18;
 
-const mapRoomTitleMaximumWidth = 112;
-const mapRoomTitleWidthBuffer = 8;
-const mapRoomTitleTop = -28;
-const mapRoomTitleBottom = 88;
+/** Where the name and the number start inside the card. */
+export const mapRoomPadding = 12;
+
+const mapRoomTitleMaximumWidth = mapRoomWidth - mapRoomPadding - 14;
+const mapRoomTitleWidthBuffer = 0;
 const mapRoomBadgeTop = -10;
 const mapRoomObjectBadgeLeft = -9;
-const mapRoomVisitBadgeRight = 74;
+const mapRoomVisitBadgeRight = mapRoomWidth + 10;
 
 export function mapRoomFootprint(
   node: WorldNode,
   point: MapPoint,
   current: boolean,
 ): MapRoomFootprint {
-  const titleWidth = mapRoomTitleWidth(node.title);
-  const titleLeft = point.x
-    + (mapRoomWidth - titleWidth) / 2;
-  const titleRight = titleLeft + titleWidth;
+  // The name now sits inside the card, so the room's own box is the whole
+  // of it, with only the badges reaching outside.
   const left = Math.min(
     point.x,
-    titleLeft,
     node.object_sightings.length > 0
       ? point.x + mapRoomObjectBadgeLeft
       : point.x,
   );
   const right = Math.max(
     point.x + mapRoomWidth,
-    titleRight,
     node.visits > 1
       ? point.x + mapRoomVisitBadgeRight
       : point.x + mapRoomWidth,
   );
   const top = Math.min(
     point.y,
-    current ? point.y + mapRoomTitleTop : point.y,
     node.visits > 1 || node.mob_sightings.length > 0
       ? point.y + mapRoomBadgeTop
       : point.y,
   );
-  const bottom = Math.max(
-    point.y + mapRoomHeight,
-    current ? point.y + mapRoomHeight : point.y + mapRoomTitleBottom,
-  );
+  const bottom = point.y + mapRoomHeight;
   return {
     x: left,
     y: top,

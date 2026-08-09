@@ -18,7 +18,7 @@ describe("map room footprint", () => {
     );
 
     expect(footprint.y).toBe(200);
-    expect(footprint.height).toBe(88);
+    expect(footprint.height).toBe(44);
     expect(footprint.x).toBeLessThanOrEqual(100);
     expect(footprint.x + footprint.width).toBeGreaterThanOrEqual(164);
   });
@@ -43,7 +43,7 @@ describe("map room footprint", () => {
 
     const footprint = mapRoomFootprint(current, { x: 100, y: 200 }, true);
 
-    expect(footprint.y).toBe(172);
+    expect(footprint.y).toBe(190);
     expect(footprint.x).toBeLessThanOrEqual(91);
     expect(footprint.x + footprint.width).toBeGreaterThanOrEqual(174);
   });

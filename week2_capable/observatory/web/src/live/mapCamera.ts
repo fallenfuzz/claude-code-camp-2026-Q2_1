@@ -41,11 +41,6 @@ export type MapCameraMotion = {
   velocity: MapPoint;
 };
 
-export type FollowMapCameraFocus = {
-  agent: MapPoint;
-  extent: MapViewport;
-};
-
 export type MapCameraInput = {
   activeExtent: MapViewport;
   camera: MapCameraMode;
@@ -268,21 +263,13 @@ export function resolveFollowMapCameraAnchor(
   anchor: MapCameraView,
   target: MapPoint,
   frame: MapFrame,
-  focus: FollowMapCameraFocus | null = null,
 ): MapCameraView {
   const followed = followMapCameraWithinDeadZone(
     anchor,
     target,
     frame,
   );
-  return focus === null
-    ? followed
-    : clampFocusCamera(
-      followed,
-      focus.agent,
-      focus.extent,
-      frame,
-    );
+  return followed;
 }
 
 export function stepCriticallyDampedMapCenter(
@@ -340,62 +327,6 @@ export function clampMapCamera(
   );
   return {
     center: viewportCenter(viewport),
-    scale: view.scale,
-  };
-}
-
-export function clampFocusCamera(
-  view: MapCameraView,
-  agent: MapPoint,
-  focusExtent: MapViewport,
-  frame: MapFrame,
-): MapCameraView {
-  const viewport = mapCameraViewport(view, frame);
-  const leftDistance = agent.x - focusExtent.x;
-  const rightDistance = focusExtent.x + focusExtent.width - agent.x;
-  const topDistance = agent.y - focusExtent.y;
-  const bottomDistance = focusExtent.y + focusExtent.height - agent.y;
-  const maximumXOffset = Math.max(
-    0,
-    Math.min(
-      viewport.width / 4,
-      rightDistance + mapRoomWidth,
-    ),
-  );
-  const minimumXOffset = -Math.max(
-    0,
-    Math.min(
-      viewport.width / 4,
-      leftDistance + mapRoomWidth,
-    ),
-  );
-  const maximumYOffset = Math.max(
-    0,
-    Math.min(
-      viewport.height / 4,
-      bottomDistance + mapRoomHeight,
-    ),
-  );
-  const minimumYOffset = -Math.max(
-    0,
-    Math.min(
-      viewport.height / 4,
-      topDistance + mapRoomHeight,
-    ),
-  );
-  return {
-    center: {
-      x: agent.x + clamp(
-        view.center.x - agent.x,
-        minimumXOffset,
-        maximumXOffset,
-      ),
-      y: agent.y + clamp(
-        view.center.y - agent.y,
-        minimumYOffset,
-        maximumYOffset,
-      ),
-    },
     scale: view.scale,
   };
 }

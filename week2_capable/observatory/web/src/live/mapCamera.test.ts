@@ -7,7 +7,6 @@ import type { WorldNode } from "../contracts";
 import type { MapGraph } from "./mapModel";
 import {
   centerMapViewportInExtent,
-  clampFocusCamera,
   clampMapCamera,
   fitMapCamera,
   fitMapCameraToSafeFrame,
@@ -79,7 +78,7 @@ describe("map camera geometry", () => {
 
     expect(followMapCameraWithinDeadZone(
       view,
-      { x: 448, y: 308 },
+      { x: 448, y: 280 },
       { width: 1_600, height: 900 },
     )).toEqual(view);
   });
@@ -93,7 +92,7 @@ describe("map camera geometry", () => {
       { x: 596, y: -44 },
       { width: 1_600, height: 900 },
     )).toEqual({
-      center: { x: 448, y: 64 },
+      center: { x: 432, y: 48 },
       scale: 1,
     });
   });
@@ -157,29 +156,6 @@ describe("map camera geometry", () => {
     expect(steppedAnchor).toEqual(immediateAnchor);
   });
 
-  it("lets the Focus clamp override a dead-zone target without changing scale", () => {
-    const anchor = resolveFollowMapCameraAnchor(
-      {
-        center: { x: 300, y: 200 },
-        scale: 1.25,
-      },
-      { x: 596, y: -44 },
-      { width: 800, height: 500 },
-      {
-        agent: { x: 596, y: -44 },
-        extent: { x: 100, y: 100, width: 500, height: 300 },
-      },
-    );
-
-    expect(anchor.scale).toBe(1.25);
-    expect(anchor).toEqual(clampFocusCamera(
-      anchor,
-      { x: 596, y: -44 },
-      { x: 100, y: 100, width: 500, height: 300 },
-      { width: 800, height: 500 },
-    ));
-  });
-
   it("critically damps camera motion without crossing its target", () => {
     let motion = {
       center: { x: 0, y: 100 },
@@ -211,6 +187,7 @@ describe("map camera geometry", () => {
       vertical: false,
       bent: false,
       oneWay: false,
+    hop: false,
     }];
 
     expect(isContinuousMapTransition(graph, "current", "hidden")).toBe(true);
@@ -278,54 +255,6 @@ describe("map camera geometry", () => {
     });
   });
 
-  it("clamps Focus pan once around the agent and preserves scale", () => {
-    const clamped = clampFocusCamera(
-      {
-        center: { x: 900, y: -500 },
-        scale: 1.25,
-      },
-      { x: 200, y: 160 },
-      { x: 100, y: 100, width: 500, height: 300 },
-      { width: 800, height: 500 },
-    );
-
-    expect(clamped).toEqual({
-      center: { x: 360, y: 60 },
-      scale: 1.25,
-    });
-  });
-
-  it("uses different Focus bounds on the near and far sides", () => {
-    const frame = { width: 800, height: 500 };
-    const extent = { x: 100, y: 100, width: 700, height: 300 };
-    const agent = { x: 180, y: 250 };
-
-    expect(clampFocusCamera(
-      { center: { x: -1_000, y: 250 }, scale: 1 },
-      agent,
-      extent,
-      frame,
-    ).center.x).toBe(36);
-    expect(clampFocusCamera(
-      { center: { x: 1_000, y: 250 }, scale: 1 },
-      agent,
-      extent,
-      frame,
-    ).center.x).toBe(380);
-  });
-
-  it("pins a Focus axis at the available near-side extent", () => {
-    expect(clampFocusCamera(
-      {
-        center: { x: 500, y: 500 },
-        scale: 1,
-      },
-      { x: -100, y: 50 },
-      { x: 0, y: 0, width: 300, height: 200 },
-      { width: 400, height: 300 },
-    ).center.x).toBe(0);
-  });
-
   it("projects screen overlay insets into the live world viewport", () => {
     expect(mapSafeViewport(
       { x: -100, y: -50, width: 800, height: 500 },
@@ -353,8 +282,8 @@ describe("map camera geometry", () => {
     expect(extent).toEqual({
       x: -36,
       y: -10,
-      width: 110,
-      height: 84,
+      width: 170,
+      height: 64,
     });
   });
 
@@ -395,7 +324,7 @@ describe("map camera geometry", () => {
   });
 
   it("centers room framing on the complete square", () => {
-    expect(roomCenter(fixtureGraph(), "current")).toEqual({ x: 32, y: 32 });
+    expect(roomCenter(fixtureGraph(), "current")).toEqual({ x: 62, y: 22 });
     expect(roomCenter(fixtureGraph(), "missing")).toBeNull();
   });
 
@@ -427,7 +356,7 @@ describe("map camera geometry", () => {
       manualCenter: { x: 520, y: 40 },
     });
 
-    expect(viewportCenter(follow.viewport).x).toBe(32);
+    expect(viewportCenter(follow.viewport).x).toBe(62);
     expect(viewportCenter(manual.viewport).x).toBe(380);
     expect(follow.panning).toBe(true);
     expect(manual.panning).toBe(true);
@@ -550,7 +479,7 @@ describe("map camera geometry", () => {
     );
 
     expect(shifted).toEqual({
-      x: 236,
+      x: 296,
       y: 0,
       width: 1_600,
       height: 900,
@@ -582,7 +511,7 @@ describe("map camera geometry", () => {
       { right: 0, bottom: 385 },
     )).toEqual({
       x: 0,
-      y: 417,
+      y: 397,
       width: 390,
       height: 700,
     });

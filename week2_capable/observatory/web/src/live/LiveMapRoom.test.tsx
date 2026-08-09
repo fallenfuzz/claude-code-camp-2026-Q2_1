@@ -97,8 +97,8 @@ describe("live map room rendering", () => {
     expect(halo?.tagName.toLowerCase()).toBe("rect");
     expect(halo).toHaveAttribute("x", "-6");
     expect(halo).toHaveAttribute("y", "-6");
-    expect(halo).toHaveAttribute("width", "76");
-    expect(halo).toHaveAttribute("height", "76");
+    expect(halo).toHaveAttribute("width", "136");
+    expect(halo).toHaveAttribute("height", "56");
     expect(selectedRoom).toHaveClass("is-selected");
   });
 
@@ -279,12 +279,12 @@ describe("live map room rendering", () => {
       ".live-map-content-badge.is-object",
     );
     expect(mob).toHaveTextContent("☠");
-    expect(mob?.querySelector("circle")).toHaveAttribute("cx", "62");
+    expect(mob?.querySelector("circle")).toHaveAttribute("cx", "122");
     expect(mob?.querySelector("circle")).toHaveAttribute("cy", "0");
     expect(mob?.querySelector("circle")).toHaveAttribute("r", "7");
     expect(object).toHaveTextContent("◇");
     expect(object?.querySelector("circle")).toHaveAttribute("cx", "-2");
-    expect(object?.querySelector("circle")).toHaveAttribute("cy", "62");
+    expect(object?.querySelector("circle")).toHaveAttribute("cy", "42");
     expect(screen.getByRole("button", {
       name: /1 mob sighting, 1 object sighting/,
     })).toBeInTheDocument();
@@ -321,7 +321,7 @@ describe("live map room rendering", () => {
       ".live-map-content-badge.is-mob",
     );
     expect(visit).toHaveAttribute("data-shifted", "true");
-    expect(visit?.querySelector("circle")).toHaveAttribute("cx", "48");
+    expect(visit?.querySelector("circle")).toHaveAttribute("cx", "108");
     expect(mob?.querySelector("circle")).toHaveAttribute("r", "8");
   });
 });

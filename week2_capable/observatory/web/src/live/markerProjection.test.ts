@@ -33,11 +33,11 @@ describe("map evidence marker projection", () => {
 
   it("starts every planar frontier at the correct room edge", () => {
     expect(frontierGeometry({ x: 100, y: 200 }, "north").start)
-      .toEqual({ x: 132, y: 200 });
+      .toEqual({ x: 162, y: 200 });
     expect(frontierGeometry({ x: 100, y: 200 }, "east").start)
-      .toEqual({ x: 164, y: 232 });
+      .toEqual({ x: 224, y: 222 });
     expect(frontierGeometry({ x: 100, y: 200 }, "southwest").start)
-      .toEqual({ x: 100, y: 264 });
+      .toEqual({ x: 100, y: 244 });
   });
 
   it("canonicalizes duplicate rooms and de-duplicates source directions", () => {

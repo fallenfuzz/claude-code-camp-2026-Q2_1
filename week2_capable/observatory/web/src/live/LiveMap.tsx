@@ -25,7 +25,6 @@ import {
 } from "./mapModel";
 import {
   fitMapCameraToSafeFrame,
-  clampFocusCamera,
   isContinuousMapTransition,
   keepSelectedRoomOutsidePanel,
   mapCameraViewport,
@@ -40,8 +39,6 @@ import {
   type MapCameraView,
   type MapSafeInsets,
 } from "./mapCamera";
-import { projectFocusContinuations } from "./focusContinuation";
-import { LiveMapContinuation } from "./LiveMapContinuation";
 import { LiveMapFrontier } from "./LiveMapFrontier";
 import { LiveMapLegend } from "./LiveMapLegend";
 import { LiveMapRoom } from "./LiveMapRoom";
@@ -58,10 +55,7 @@ import {
   minimumMapZoom,
   projectLanternOpacities,
   projectMapPresentation,
-  roomFitsFocusLayout,
-  visibleRoomComponentSize,
   type MapCameraMode,
-  type MapFocusLayout,
   type MapMode,
   type MapOverlayRect,
 } from "./mapPresentation";
@@ -171,61 +165,9 @@ export function LiveMap({
     x: graph.x + graph.width / 2,
     y: graph.y + graph.height / 2,
   };
-  const focusLayout: MapFocusLayout = {
-    frame,
-    overlayRects: focusOverlayRects,
-    viewport: mapCameraViewport({
-      center: currentCenter,
-      scale: cameraView.scale,
-    }, frame),
-  };
   const presentation = useMemo(() => {
-    return projectMapPresentation(
-      graph,
-      mode,
-      selectedRoomId,
-      focusLayout,
-    );
-  }, [
-    focusLayout.frame.height,
-    focusLayout.frame.width,
-    focusLayout.overlayRects,
-    focusLayout.viewport.height,
-    focusLayout.viewport.width,
-    focusLayout.viewport.x,
-    focusLayout.viewport.y,
-    graph,
-    mode,
-    selectedRoomId,
-  ]);
-  const focusHiddenInsideCount = useMemo(() => {
-    if (mode !== "focus") return 0;
-    return graph.rooms.filter(({ node, point }) => {
-      return !presentation.visibleRoomIds.has(node.id)
-        && roomFitsFocusLayout(
-          node,
-          point,
-          node.id === graph.currentRoomId,
-          focusLayout,
-        );
-    }).length;
-  }, [
-    focusLayout.frame.height,
-    focusLayout.frame.width,
-    focusLayout.overlayRects,
-    focusLayout.viewport.height,
-    focusLayout.viewport.width,
-    focusLayout.viewport.x,
-    focusLayout.viewport.y,
-    graph.rooms,
-    mode,
-    presentation.visibleRoomIds,
-  ]);
-  const focusComponentRoomCount = useMemo(() => {
-    return mode === "focus"
-      ? visibleRoomComponentSize(graph, presentation.visibleRoomIds)
-      : 0;
-  }, [graph, mode, presentation.visibleRoomIds]);
+    return projectMapPresentation(graph, mode, selectedRoomId);
+  }, [graph, mode, selectedRoomId]);
   const lanternOpacities = useMemo(() => {
     return projectLanternOpacities(graph);
   }, [graph]);
@@ -248,14 +190,6 @@ export function LiveMap({
       markerPoints,
     );
   }, [graph, markerPoints, presentation.visibleRoomIds]);
-  const focusRawExtent = useMemo(() => {
-    return mapContentExtent(
-      graph,
-      presentation.visibleRoomIds,
-      [],
-      0,
-    );
-  }, [graph, presentation.visibleRoomIds]);
   const fitExtent = useMemo(() => {
     if (
       selectedRoomId === null
@@ -313,14 +247,6 @@ export function LiveMap({
         bottom: panelInset.bottom,
       },
   );
-  const focusContinuations = useMemo(() => {
-    if (mode !== "focus") return [];
-    return projectFocusContinuations(
-      graph,
-      presentation.visibleRoomIds,
-      projectedViewport,
-    );
-  }, [graph, mode, presentation.visibleRoomIds, projectedViewport]);
   const visibleRoomFootprints = useMemo(() => {
     return graph.rooms.flatMap(({ node, point }) => {
       return presentation.visibleRoomIds.has(node.id)
@@ -406,14 +332,7 @@ export function LiveMap({
       scale: cameraViewRef.current.scale,
     };
     const targetView = connectedMovement
-      ? resolveFollowMapCameraAnchor(
-        anchor,
-        currentCenter,
-        frame,
-        mode === "focus"
-          ? { agent: currentCenter, extent: focusRawExtent }
-          : null,
-      )
+      ? resolveFollowMapCameraAnchor(anchor, currentCenter, frame)
       : { center: currentCenter, scale: anchor.scale };
     const target = targetView.center;
     followAnchorRef.current = target;
@@ -503,10 +422,6 @@ export function LiveMap({
     cameraView.scale,
     currentCenter.x,
     currentCenter.y,
-    focusRawExtent.height,
-    focusRawExtent.width,
-    focusRawExtent.x,
-    focusRawExtent.y,
     frame.height,
     frame.width,
     graph.connections,
@@ -622,21 +537,6 @@ export function LiveMap({
     snapshot?.agent_thought,
     thoughtExpanded,
   ]);
-
-  useEffect(() => {
-    const previousRoomId = previousCurrentRoomIdRef.current;
-    const currentRoomId = graph.currentRoomId;
-    previousCurrentRoomIdRef.current = currentRoomId;
-    if (
-      mode === "focus"
-      && cameraMode === "manual"
-      && previousRoomId !== null
-      && currentRoomId !== null
-      && previousRoomId !== currentRoomId
-    ) {
-      setCameraMode("follow");
-    }
-  }, [cameraMode, graph.currentRoomId, mode]);
 
   useEffect(() => {
     setCameraView({
@@ -789,23 +689,6 @@ export function LiveMap({
       x: viewport.width / bounds.width,
       y: viewport.height / bounds.height,
     });
-    if (mode === "focus") {
-      const clamped = clampFocusCamera(
-        panned,
-        currentCenter,
-        focusRawExtent,
-        frame,
-      );
-      setCameraView({
-        center: {
-          x: deltaX === 0 ? drag.center.x : clamped.center.x,
-          y: deltaY === 0 ? drag.center.y : clamped.center.y,
-        },
-        scale: clamped.scale,
-      });
-    } else {
-      setCameraView(panned);
-    }
   };
   const stopDragging = (event: ReactPointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
@@ -847,16 +730,7 @@ export function LiveMap({
     setCameraMode(next);
   };
   const handleModeChange = (next: MapMode) => {
-    if (next === "focus") {
-      followInitializedRef.current = true;
-      followVelocityRef.current = { x: 0, y: 0 };
-      followAnchorRef.current = currentCenter;
-      setCameraView((current) => ({
-        center: currentCenter,
-        scale: current.scale,
-      }));
-      setCameraMode("follow");
-    } else if (next === "lantern") {
+    if (next === "lantern") {
       followInitializedRef.current = true;
       followVelocityRef.current = { x: 0, y: 0 };
       followAnchorRef.current = currentCenter;
@@ -876,50 +750,6 @@ export function LiveMap({
       }, direction);
     });
   };
-  const handleReflow = () => {
-    const nextGraph = reflowMapGraph(
-      snapshot.world.nodes,
-      snapshot.world.edges,
-      world,
-    );
-    const nextCenter = roomCenter(
-      nextGraph,
-      nextGraph.currentRoomId,
-    ) ?? {
-      x: nextGraph.x + nextGraph.width / 2,
-      y: nextGraph.y + nextGraph.height / 2,
-    };
-    const nextPresentation = projectMapPresentation(
-      nextGraph,
-      mode,
-      selectedRoomId,
-      {
-        frame,
-        overlayRects: focusOverlayRects,
-        viewport: mapCameraViewport({
-          center: nextCenter,
-          scale: cameraView.scale,
-        }, frame),
-      },
-    );
-    const nextRoomIds = selectedRoomId === null
-      || nextPresentation.selectionPathRoomIds.length === 0
-      ? nextPresentation.visibleRoomIds
-      : new Set(nextPresentation.selectionPathRoomIds);
-    const nextExtent = mapContentExtent(
-      nextGraph,
-      nextRoomIds,
-      [],
-    );
-    setReflowRevision((current) => current + 1);
-    setCameraView(fitMapCameraToSafeFrame(
-      nextExtent,
-      frame,
-      safeInsets,
-    ));
-    setCameraMode("fit");
-    setPanHintVisible(false);
-  };
   return (
     <section
       ref={stageRef}
@@ -929,23 +759,6 @@ export function LiveMap({
         inspector === null ? "" : "has-inspector",
       ].filter(Boolean).join(" ")}
       aria-label="Learned world map"
-      data-focus-fill-count={mode === "focus"
-        ? presentation.focusFillRoomCount
-        : undefined}
-      data-focus-component-count={mode === "focus"
-        ? focusComponentRoomCount
-        : undefined}
-      data-focus-hidden-inside-count={mode === "focus"
-        ? focusHiddenInsideCount
-        : undefined}
-      data-focus-overlay-count={mode === "focus"
-        ? focusOverlayRects.length
-        : undefined}
-      data-focus-pane-height={mode === "focus" ? frame.height : undefined}
-      data-focus-pane-width={mode === "focus" ? frame.width : undefined}
-      data-focus-shell-count={mode === "focus"
-        ? presentation.focusShellRoomCount
-        : undefined}
       style={{
         "--live-map-overlay-safe-band": `${overlayBand}px`,
       } as CSSProperties}
@@ -960,7 +773,6 @@ export function LiveMap({
         maximumZoom={maximumMapZoom}
         onCameraChange={handleCameraChange}
         onModeChange={handleModeChange}
-        onReflow={handleReflow}
         onZoom={handleZoom}
       />
       <svg
@@ -1072,24 +884,6 @@ export function LiveMap({
           })}
         </g>
       </svg>
-      {mode === "focus" ? (
-        <div
-          aria-label="Learned map continuations"
-          className="live-map-continuations"
-        >
-          {focusContinuations.map((marker) => (
-            <LiveMapContinuation
-              frame={frame}
-              key={marker.edge}
-              marker={marker}
-              overlayRects={markerOverlayRects}
-              safeInsets={defaultSafeInsets}
-              viewport={viewport}
-              visibleRoomFootprints={visibleRoomFootprints}
-            />
-          ))}
-        </div>
-      ) : null}
       {inspector === null ? null : (
         <LiveRoomInspector
           room={inspector}
@@ -1136,20 +930,24 @@ function MapLink({
   if (source === undefined || target === undefined) {
     return null;
   }
-  const start = {
+  const from = {
     x: source.x + mapRoomWidth / 2,
     y: source.y + mapRoomHeight / 2,
   };
-  const end = {
+  const to = {
     x: target.x + mapRoomWidth / 2,
     y: target.y + mapRoomHeight / 2,
   };
+  // A link joins two rooms and stops where each begins. Drawn centre to
+  // centre it runs under both of them, which reads as passing through.
+  const start = roomEdge(from, to);
+  const end = roomEdge(to, from);
   const path = connection.bent
     ? bentPath(start, end)
     : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
   const className = [
     "live-map-link",
-    connection.bent ? "is-bent" : "",
+    connection.hop || connection.bent ? "is-hop" : "",
     connection.displacement ? "is-displacement" : "",
     connection.vertical ? "is-vertical" : "",
   ].filter(Boolean).join(" ");
@@ -1158,6 +956,19 @@ function MapLink({
       <path d={path} />
     </g>
   );
+}
+
+/** Where a line between two room centres leaves the first room's box. */
+function roomEdge(from: MapPoint, to: MapPoint): MapPoint {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  if (deltaX === 0 && deltaY === 0) return from;
+  const half = { x: mapRoomWidth / 2 + 2, y: mapRoomHeight / 2 + 2 };
+  const scale = Math.min(
+    Math.abs(deltaX) > 0.001 ? Math.abs(half.x / deltaX) : Infinity,
+    Math.abs(deltaY) > 0.001 ? Math.abs(half.y / deltaY) : Infinity,
+  );
+  return { x: from.x + deltaX * scale, y: from.y + deltaY * scale };
 }
 
 function bentPath(source: MapPoint, target: MapPoint): string {

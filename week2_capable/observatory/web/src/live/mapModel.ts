@@ -5,6 +5,7 @@ import type {
   WorldSighting,
 } from "../contracts";
 import {
+  arcKey,
   emptyRoomLayout,
   squareOf,
   type RoomLayout,
@@ -30,6 +31,8 @@ export type MapConnection = {
   vertical: boolean;
   bent: boolean;
   oneWay: boolean;
+  /** Drawn arcing over: it crosses another link, or runs over a room. */
+  hop: boolean;
 };
 
 export type MapGraph = {
@@ -66,10 +69,16 @@ type ConnectionEvidence = {
   firstSequence: number;
 };
 
-export const mapRoomWidth = 64;
-export const mapRoomHeight = 64;
-export const mapColumnGap = 148;
-export const mapRowGap = 122;
+/**
+ * A room is a card wide enough to carry its own name, because a name in the
+ * gutter below it stops being attributable once the squares are fixed and
+ * every cell is filled. The column gap grows with it, or two rooms nearly
+ * touch and the east and west links collapse to nothing.
+ */
+export const mapRoomWidth = 124;
+export const mapRoomHeight = 44;
+export const mapColumnGap = 164;
+export const mapRowGap = 92;
 const inset = 92;
 
 const directionVectors: Record<string, MapPoint> = {
@@ -218,6 +227,7 @@ function buildMapGraphWithLayout(
       },
     ]),
   );
+  const byId = new Map(orderedNodes.map((node) => [node.id, node]));
   const connections = evidence.map((connection) => {
     const source = points.get(connection.source);
     const target = points.get(connection.target);
@@ -250,6 +260,13 @@ function buildMapGraphWithLayout(
     const directions = new Set(
       connection.edges.map((edge) => `${edge.source}:${edge.target}`),
     );
+    // The world file already knows which links its own squares make untrue.
+    const lies = connection.edges.some((edge) => {
+      const from = byId.get(edge.source)?.atlas?.vnum;
+      const to = byId.get(edge.target)?.atlas?.vnum;
+      return from !== undefined && to !== undefined
+        && world.arcs.has(arcKey(from, edge.direction, to));
+    });
     return {
       id: connection.id,
       source: connection.source,
@@ -262,6 +279,7 @@ function buildMapGraphWithLayout(
       vertical,
       bent,
       oneWay: directions.size === 1,
+      hop: lies,
     };
   });
 

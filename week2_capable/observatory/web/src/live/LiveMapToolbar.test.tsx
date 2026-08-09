@@ -33,7 +33,7 @@ describe("live map toolbar", () => {
       "Freeze the camera at its current center and scale",
     );
     expect(screen.getByRole("button", {
-      name: "Focus",
+      name: "Grow",
     })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -41,13 +41,11 @@ describe("live map toolbar", () => {
     const user = userEvent.setup();
     const onCameraChange = vi.fn();
     const onModeChange = vi.fn();
-    const onReflow = vi.fn();
     const onZoom = vi.fn();
     renderToolbar({
       selectedRoomId: "vnum:6077",
       onCameraChange,
       onModeChange,
-      onReflow,
       onZoom,
     });
 
@@ -60,14 +58,10 @@ describe("live map toolbar", () => {
     await user.click(screen.getByRole("button", {
       name: "Zoom in",
     }));
-    await user.click(screen.getByRole("button", {
-      name: "Reflow map",
-    }));
 
     expect(onCameraChange).toHaveBeenCalledWith("fit");
     expect(onModeChange).toHaveBeenCalledWith("lantern");
     expect(onZoom).toHaveBeenCalledWith("in");
-    expect(onReflow).toHaveBeenCalledOnce();
   });
 
   it("explains bounded zoom controls", () => {
@@ -94,14 +88,13 @@ function renderToolbar(
   return render(
     <LiveMapToolbar
       camera="follow"
-      mode="focus"
+      mode="grow"
       selectedRoomId={null}
       zoom={1}
       minimumZoom={0.75}
       maximumZoom={2}
       onCameraChange={vi.fn()}
       onModeChange={vi.fn()}
-      onReflow={vi.fn()}
       onZoom={vi.fn()}
       {...overrides}
     />,

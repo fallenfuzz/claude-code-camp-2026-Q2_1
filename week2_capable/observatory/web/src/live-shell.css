@@ -900,12 +900,6 @@
   font-size: 16px;
 }
 
-.live-map-toolbar-tool.live-map-reflow {
-  width: auto;
-  padding: 0 10px;
-  font-size: 11px;
-}
-
 .live-map-toolbar button:focus-visible,
 .live-map-dock-toggle:focus-visible {
   outline: 2px solid var(--color-cyan);
@@ -954,11 +948,18 @@
   font-size: 13px;
 }
 
+/* Taken from the mockup, which is the design: a thin round-capped line,
+   and a dotted arc where one link has to hop over another. */
 .live-map-link path {
   fill: none;
   stroke: var(--color-map-link);
-  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
+}
+
+.live-map-link.is-hop path {
+  stroke-dasharray: 2 4;
 }
 
 .live-map-link marker path {
@@ -967,7 +968,8 @@
 }
 
 .live-map-link.is-bent path {
-  stroke: #8a6d3b;
+  stroke: var(--color-map-link);
+  stroke-dasharray: 2 4;
 }
 
 .live-map-link.is-displacement path,
@@ -991,80 +993,6 @@
 
 .live-map-frontier circle {
   fill: currentColor;
-}
-
-.live-map-continuations {
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-  z-index: 4;
-}
-
-.live-map-continuation {
-  color: #b99cff;
-  filter: drop-shadow(0 0 5px rgb(185 156 255 / 28%));
-  pointer-events: none;
-  position: absolute;
-}
-
-.live-map-continuation-fade,
-.live-map-continuation-chevron {
-  position: absolute;
-}
-
-.live-map-continuation[data-edge="top"] .live-map-continuation-chevron {
-  left: 3px;
-  top: 0;
-  transform: rotate(-90deg);
-}
-
-.live-map-continuation[data-edge="top"] .live-map-continuation-fade {
-  background: linear-gradient(to bottom, rgb(185 156 255 / 34%), transparent);
-  height: 32px;
-  left: 10px;
-  top: 18px;
-  width: 4px;
-}
-
-.live-map-continuation[data-edge="right"] .live-map-continuation-chevron {
-  right: 0;
-  top: 3px;
-}
-
-.live-map-continuation[data-edge="right"] .live-map-continuation-fade {
-  background: linear-gradient(to left, rgb(185 156 255 / 34%), transparent);
-  height: 4px;
-  right: 18px;
-  top: 10px;
-  width: 32px;
-}
-
-.live-map-continuation[data-edge="bottom"] .live-map-continuation-chevron {
-  bottom: 0;
-  left: 3px;
-  transform: rotate(90deg);
-}
-
-.live-map-continuation[data-edge="bottom"] .live-map-continuation-fade {
-  background: linear-gradient(to top, rgb(185 156 255 / 34%), transparent);
-  bottom: 18px;
-  height: 32px;
-  left: 10px;
-  width: 4px;
-}
-
-.live-map-continuation[data-edge="left"] .live-map-continuation-chevron {
-  left: 0;
-  top: 3px;
-  transform: rotate(180deg);
-}
-
-.live-map-continuation[data-edge="left"] .live-map-continuation-fade {
-  background: linear-gradient(to right, rgb(185 156 255 / 34%), transparent);
-  height: 4px;
-  left: 18px;
-  top: 10px;
-  width: 32px;
 }
 
 .live-map-room rect {
@@ -1185,26 +1113,22 @@
   stroke-width: 2;
 }
 
+/* The name is the label and sits inside the card, because a name in the
+   gutter stops being attributable once every square is filled. The room
+   number goes under it, quiet, since the name is what a person reads. */
 .live-map-room-title {
+  fill: var(--color-text);
+  font-size: 11.5px;
   pointer-events: none;
-}
-
-.live-map-room-title {
-  fill: var(--color-muted);
-  font-size: 10.5px;
-  paint-order: stroke fill;
-  stroke: var(--color-bg);
-  stroke-linejoin: round;
-  stroke-width: 3px;
-  text-anchor: middle;
+  text-anchor: start;
 }
 
 .live-map-room-debug-id {
-  fill: var(--color-text);
-  font-size: 10px;
-  font-weight: 700;
+  fill: var(--color-quiet);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
   pointer-events: none;
-  text-anchor: middle;
+  text-anchor: start;
 }
 
 .live-map-vertical-marker {
