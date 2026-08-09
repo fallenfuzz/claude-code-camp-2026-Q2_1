@@ -962,6 +962,19 @@
   stroke-dasharray: 2 4;
 }
 
+/* A link between two rooms the agent has walked, from .link.is-walked in
+   the mockup. Everything else is faint, because it is a way it knows about
+   rather than a way it has been. */
+.live-map-link.is-walked path {
+  opacity: .95;
+  stroke: var(--color-cyan);
+  stroke-width: 2.2;
+}
+
+.live-map-link.is-faint path {
+  opacity: .42;
+}
+
 .live-map-link marker path {
   fill: var(--color-map-link);
   stroke: none;

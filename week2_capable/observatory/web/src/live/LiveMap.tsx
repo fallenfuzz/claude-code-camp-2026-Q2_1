@@ -969,6 +969,7 @@ function MapLink({
   const className = [
     "live-map-link",
     connection.hop || connection.bent ? "is-hop" : "",
+    connection.walked ? "is-walked" : "is-faint",
     connection.displacement ? "is-displacement" : "",
     connection.vertical ? "is-vertical" : "",
   ].filter(Boolean).join(" ");

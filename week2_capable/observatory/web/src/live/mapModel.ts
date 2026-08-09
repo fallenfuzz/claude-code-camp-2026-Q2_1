@@ -33,6 +33,8 @@ export type MapConnection = {
   oneWay: boolean;
   /** Drawn arcing over: it crosses another link, or runs over a room. */
   hop: boolean;
+  /** The agent has walked this one, rather than only knowing of it. */
+  walked: boolean;
 };
 
 export type MapGraph = {
@@ -280,6 +282,7 @@ function buildMapGraphWithLayout(
       bent,
       oneWay: directions.size === 1,
       hop: lies,
+      walked: connection.edges.some(({ traversals }) => traversals > 0),
     };
   });
 
