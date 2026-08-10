@@ -79,10 +79,10 @@ class AttemptMetrics:
     character_made: bool = False
     max_hit: int | None = None
     max_move: int | None = None
-    #: Distinct rooms reached inside the move budget. The count a coverage
-    #: mission is scored on, and a useful shape of any run: an attempt that
-    #: walks a great deal and sees little is going in circles.
-    rooms_explored: int = 0
+    #: Midgaard rooms reached inside the move budget, or None when the run
+    #: recorded no verified room number. A ledger written before this
+    #: existed knows nothing about coverage, which is not the same as none.
+    rooms_explored: int | None = None
 
     @property
     def aggregate_eligible(self) -> bool:
@@ -227,7 +227,10 @@ def measure_attempt(
         character_made=any(
             event.get("kind") == "character_made" for event in gateway
         ),
-        rooms_explored=len(rooms_within_moves(gateway, J4_MOVES)),
+        rooms_explored=(
+            None if (reached := rooms_within_moves(gateway, J4_MOVES)) is None
+            else len(reached)
+        ),
         max_hit=_starting_maxima(gateway)[0],
         max_move=_starting_maxima(gateway)[1],
         capability_digest=(

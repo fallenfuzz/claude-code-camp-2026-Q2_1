@@ -45,7 +45,7 @@ class Attempt:
     success: bool
     censored: bool
     calls: int
-    rooms: int
+    rooms: int | None
     cost: float | None
     deaths: int
     #: Whether the attempt is an outcome at all. A run that never got as far
@@ -135,7 +135,7 @@ def render(arms: Mapping[str, list[Attempt]]) -> str:
             f"| {len(attempts)} "
             f"| {sum(a.success for a in attempts)} "
             f"| {_mean(measured)} "
-            f"| {_mean([a.rooms for a in attempts])} "
+            f"| {_mean([a.rooms for a in attempts if a.rooms is not None])} "
             f"| {_mean(priced, money=True)} "
             f"| {sum(a.deaths for a in attempts)} "
             f"| {sum(a.censored for a in attempts)} "
@@ -181,7 +181,10 @@ def _attempt(arm: str, row: Mapping[str, Any]) -> Attempt:
         success=bool(row.get("success", False)),
         censored=str(row.get("stop_reason", "")).startswith(BOUNDED),
         calls=int(row.get("model_calls", 0) or 0),
-        rooms=int(row.get("rooms_explored", 0) or 0),
+        rooms=(
+            None if row.get("rooms_explored") is None
+            else int(row["rooms_explored"])
+        ),
         cost=None if cost is None else float(cost),
         deaths=deaths,
         # The same rule the benchmark's own aggregate uses, so a row counts

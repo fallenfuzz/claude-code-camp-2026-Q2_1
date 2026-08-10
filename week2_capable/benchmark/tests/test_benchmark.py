@@ -492,7 +492,7 @@ def test_a_setup_failure_is_excluded_from_every_outcome(
 
     row = next(l for l in report.splitlines() if "survival" in l)
     # One attempt counted, one success, one excluded.
-    assert row.endswith("| 1 | 1 | 20.0 | 0.0 | $0.100 | 0 | 0 | 1 |"), row
+    assert row.endswith("| 1 | 1 | 20.0 | n/a | $0.100 | 0 | 0 | 1 |"), row
     assert "excluded" in report
 
 
@@ -632,3 +632,81 @@ def test_warm_and_fresh_character_are_refused_together() -> None:
         main(["--warm", "--fresh-character"])
 
     assert exit_code.value.code == 2
+
+
+def _events(*entries):
+    return [{"kind": k, "payload": p} for k, p in entries]
+
+
+def _step(issuer="agent", line="north"):
+    return ("command", {"line": line, "issuer": issuer})
+
+
+def _room(number, title):
+    return ("room_number", {"number": number, "title": title})
+
+
+def test_the_budget_counts_steps_a_routine_takes_inside_one_call() -> None:
+    """A sweep walks many steps in a single tool call. Counting move calls
+    instead of steps gave the arms that sweep twice the walking: one recorded
+    attempt made 24 move calls and 52 actual steps."""
+    from benchmark.journeys import rooms_within_moves
+
+    events = _events(
+        _room(3001, "Temple"),
+        *[_step(issuer="gateway") for _ in range(3)],
+        _room(3005, "Temple Square"),
+        _step(),
+        _room(3006, "Inn"),
+    )
+
+    assert rooms_within_moves(events, 3) == ("3001 Temple", "3005 Temple Square")
+
+
+def test_rooms_reached_after_the_budget_do_not_score() -> None:
+    from benchmark.journeys import rooms_within_moves
+
+    events = _events(_room(3001, "Temple"), _step(), _step(),
+                     _room(3005, "Square"))
+
+    assert rooms_within_moves(events, 1) == ("3001 Temple",)
+
+
+def test_the_watching_immortal_does_not_spend_the_budget() -> None:
+    """The observer is a different character somewhere else."""
+    from benchmark.journeys import rooms_within_moves
+
+    events = _events(*[_step(issuer="gateway-admin") for _ in range(5)],
+                     _room(3001, "Temple"))
+
+    assert rooms_within_moves(events, 1) == ("3001 Temple",)
+
+
+def test_only_midgaard_rooms_count_toward_covering_midgaard() -> None:
+    """Leaving the city must not improve the city score."""
+    from benchmark.journeys import rooms_within_moves
+
+    events = _events(_room(3001, "Temple"), _room(3062, "Alley"),
+                     _room(1204, "Somewhere else"), _room(7115, "The Dump"))
+
+    assert rooms_within_moves(events, 10) == ("3001 Temple", "3062 Alley")
+
+
+def test_two_rooms_sharing_a_title_are_two_rooms() -> None:
+    """Twenty three of Midgaard's titles are reused elsewhere in the world,
+    and the city repeats its own. Counting titles would merge them."""
+    from benchmark.journeys import rooms_within_moves
+
+    events = _events(_room(3010, "Main Street"), _room(3011, "Main Street"))
+
+    assert len(rooms_within_moves(events, 10)) == 2
+
+
+def test_a_run_with_no_verified_room_numbers_scores_unknown() -> None:
+    """Unknown is not zero, and a zero would read as a failed explorer."""
+    from benchmark.journeys import J4, judge, rooms_within_moves
+
+    events = _events(_step(), ("observation", {"kind": "room", "text": "Temple"}))
+
+    assert rooms_within_moves(events, 10) is None
+    assert judge(J4, events).evidence == ("no verified room numbers recorded",)

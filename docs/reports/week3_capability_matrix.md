@@ -146,37 +146,40 @@ had already visited returned unreachable with zero steps.
 Every call resends the whole conversation, so what accumulates in it is what
 the run pays for repeatedly. Measured on the largest attempt of each arm.
 
-| | A0 control, 28 calls | A2 knowledge, 103 calls |
-|---|---|---|
-| System and tool schemas, resent every call | 1,444 + 7,534 chars | 1,444 + 9,332 chars |
-| History, first request to last | 135 to 26,526 chars | 604 to 117,208 chars |
-| Game output | 56% | 36% |
-| Result envelope | 31% | 27% |
-| The agent's own prose | 13% | 37% |
+| Arm | Calls | History chars | Game output | Result envelope | Agent prose |
+|---|---:|---:|---:|---:|---:|
+| A1 survival | 20 | 12,486 | 62% | 30% | 8% |
+| A0 control | 28 | 17,071 | 56% | 31% | 13% |
+| A3 navigation | 30 | 18,157 | 60% | 31% | 8% |
+| A4 survival, knowledge | 39 | 25,826 | 54% | 29% | 17% |
+| A5 all three | 68 | 45,850 | 47% | 29% | 24% |
+| A2 knowledge | 103 | 78,872 | 36% | 27% | 37% |
 
 Almost none of it is duplication in the literal sense. Across the knowledge
-arm's 217 final blocks, exactly one was a verbatim repeat. The waste is in
-three other shapes.
+arm's 217 final blocks, exactly one was a verbatim repeat.
 
-- The envelope around every result is a quarter of the history. A result is
-  sent as the full typed record, with tool, capability, family, command,
-  sequence and trace identifier around the game's text. The agent already
-  supports sending only the text, and the matrix did not use it: 21,065 of
-  the knowledge arm's 78,872 history characters were envelope.
-- The same places are described in full over and over. Of 112 results, 43
-  were distinct places and 69 re-described somewhere the agent had already
-  been. The Promenade and Park Road each arrived eleven times, complete with
-  their descriptions, and Emerald Avenue ten.
-- The agent's own prose is the largest single share at 37%, and most of it is
-  a per-turn acknowledgement of the state block rather than reasoning.
+- The envelope around every result is 27% to 31% in every arm. It is not a
+  knowledge problem, it is the shape of a result: the full typed record, with
+  tool, capability, family, command, sequence and trace identifier wrapped
+  around the game's text. The agent already supports sending only the text,
+  and the matrix did not use it.
+- The agent's own prose rises with knowledge, from 8% in the arms without it
+  to 37% in the arm carrying the most, and much of that is a per-turn
+  acknowledgement of the state block rather than reasoning.
+- The state block itself never accumulates. It is rewritten for each call and
+  dropped afterwards, so its length is paid once and never again.
+- Places are described again on every return, and the failed attempt returned
+  often. Counting how often needs room numbers rather than titles, so the
+  size of that repetition is not quoted here.
 
-Finding: the knowledge arm's cost is not the state block's own length, which
-is rewritten each call and never accumulates. It is that the arm walked four
-times as much, and every step added a room description and its envelope to a
-history resent on every subsequent call. Wandering is quadratic in cost, not
-linear.
+Finding: the knowledge arm's bill is not the block's own length. It is that
+the arm walked four times as much, and every step added a room description
+and its envelope to a history resent by every later call. Wandering compounds.
 
+Caching softens that without removing it. The failed attempt read 1.82 million
+cached tokens for about $0.182, more than half its $0.344.
 
+## Caveats
 
 - Three attempts per arm screens large differences and cannot establish a
   success rate. The knowledge result is large enough to believe. The survival
@@ -203,6 +206,13 @@ linear.
   question.
 - Do not rerun J1. It is short enough that which exit is chosen at Market
   Square decides the result, and that is variance rather than capability.
+- A coverage mission is the one that would rank these capabilities. Scoring
+  the bakery runs by Midgaard rooms reached within a hundred steps, which is
+  not what they were trying to do, already separates them: A5 reached 16, 31
+  and 32, where the control reached 5, 8 and 15.
+- Send results as text rather than as the full typed record, and treat that
+  as its own condition. It changes what the model sees, so a run under it is
+  not comparable with this matrix.
 - Two failure shapes are worth carrying forward as real: a frontier-heavy
   summary can turn one wrong turn into prolonged wandering, and an
   unconstrained sweep can optimise map coverage instead of the mission.
