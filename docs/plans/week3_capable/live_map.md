@@ -144,8 +144,8 @@ ways into it, never as a square.
 ## Quality bar
 
 - Approved visual mockups are binding for hierarchy, spacing,
-  typography, colour and interaction. Any deviation needs sign off
-  before it is built.
+  typography, colour and interaction. A deviation is a change to the
+  design and is decided before it is built, not discovered after.
 - UI changes are verified by rendering the result, never by reading the
   code that produces it.
 - Styling stays in the three layers: tokens for every named value,

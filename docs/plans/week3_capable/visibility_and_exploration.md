@@ -200,7 +200,7 @@ is stated rather than discovered late.
 `capabilities.perception` does not exist and is rejected by validation in
 three packages. The project's binding architecture is five capabilities
 with one master flag each, so adding a sixth is an architecture change,
-not a plan detail. The options, for Ibnou:
+not a plan detail. The options are:
 
 - a sixth capability block, changing the stated five-capability rule
 - a `perception` settings group under `knowledge`, since its output

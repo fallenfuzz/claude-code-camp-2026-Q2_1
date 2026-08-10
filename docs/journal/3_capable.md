@@ -294,9 +294,9 @@ a comparison, it is a closure.
 
 The final measurement, against the game's room numbers: every merge the
 rule makes is correct, and it joins 43 percent of the pairs that are
-truly the same room. The reviewer also found why the rest are missed,
-and it is not the rule. A room's stored description sometimes contains
-what was happening in the room rather than the room itself, a fled
+truly the same room. Why the rest are missed turned out not to be the
+rule at all. A room's stored description sometimes contains what was
+happening in the room rather than the room itself, a fled
 combat line, loot on the floor, one extra drunk, so the same room reads
 as two. That single defect accounts for most of the lost joins, and it
 belongs to the observation pipeline, not here.
@@ -556,7 +556,7 @@ real data: 1314 records carry no iteration scope and sort inside one, so
 the cut landed mid-iteration at 362 of 1180 window sizes, displaying a
 cost of $0.000000 against $0.000325 actual.
 
-Ibnou opened the page, saw a story that began in the middle, and the
+Opening the page showed a story that began in the middle, and the
 window came out. What makes it worth recording is that the replacement I
 designed was also wrong, and measurement said so before it was built.
 The idea was an outline of every turn and iteration, always whole, with

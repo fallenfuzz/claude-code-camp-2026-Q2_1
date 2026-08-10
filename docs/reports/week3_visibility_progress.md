@@ -46,7 +46,8 @@ re-tread rate, or travel-by-title is well defined until identity is.
   aliased. Replay runs from gateway journals instead.
 - `capabilities.perception` is rejected by validation in three packages
   and would be a sixth capability against a binding five-capability
-  rule. That is a decision for Ibnou, recorded in the plan.
+  rule. Which way that goes is an architecture decision, and it is open.
+  The choices are recorded in the plan.
 
 ## The first identity rule failed against its own data
 
@@ -115,7 +116,7 @@ re-tread rate, or travel-by-title is well defined until identity is.
 - Blocked and recorded rather than forced: recording the game's own room
   numbers needs a channel that does not cross the boundary keeping
   immortal code out of the agent's runtime, which is enforced by a test.
-  Two designs are written in the plan for Ibnou to choose.
+  Two designs are written in the plan, and neither is chosen yet.
 - F1 cannot be measured against baseline until a mission runs with the
   knowledge capability on. That measurement is outstanding.
 
