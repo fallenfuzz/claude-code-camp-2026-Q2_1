@@ -668,9 +668,22 @@ walking. The errand had quietly become covering the map.
 The run without the summary took eight calls, and did it by reading what the
 game itself wrote on the walls: "I can see there's a market square to the
 south. The bakery might be there", and two rooms later, "The description says
-the bakery is to the north." The game signposts its own world. Our summary
-listed the exits as walked or unwalked and dropped what the room actually
-said, so we replaced the game's directions with a progress bar. Survival came out best on paper at 15.3 calls, but the
+the bakery is to the north."
+
+Reading the failure closely matters here, because it is easy to blame the
+wrong thing. That run reached the market square on its fourth decision, and
+the shop lay west while it went east. That first wrong turn is ordinary
+variance and the summary had nothing to do with it. Another run carrying the
+same summary finished in eight calls, like the one without. What the summary
+did was decide what happened next. Instead of coming back to the street it
+had been on, the agent spent another ninety decisions enlarging the map, and
+never once tried to look at anything or ask a shopkeeper for a list, which is
+the only evidence the errand is judged on.
+
+The game's own directions were never taken away, and saying they were would
+be too strong. They sat in the same conversation the whole time. What we
+added was a second instruction that competed with them, and a progress bar
+that only ever counts up is a very insistent one. Survival came out best on paper at 15.3 calls, but the
 per-attempt spread overlapped the control completely and nothing died in any
 arm, so the reflex it exists for never fired. At three attempts that is an
 observation and not a result.

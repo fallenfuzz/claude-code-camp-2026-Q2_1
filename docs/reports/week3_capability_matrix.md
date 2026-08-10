@@ -61,18 +61,21 @@ Total spend for the matrix was about $1.30 against a $5.40 ceiling.
 
 ## Findings
 
-Finding: no capability meets the decision rule on this mission, and knowledge
-fails it clearly.
+Finding: no capability earns a default from this mission, and two of the three
+were never exercised by it.
 
-- Knowledge costs 2.3 times the control's calls and 4.7 times its cost. It is
-  the only arm that failed to finish an attempt, running to the cost ceiling
-  at 103 calls. The two arms carrying knowledge are the two worst arms.
-- Survival is nominally the best arm at 15.3 calls against 16.7, but the
-  per-attempt spread overlaps the control entirely. At three attempts this is
-  not a difference.
-- Navigation is indistinguishable from the control.
-- Zero deaths anywhere means survival never exercised what it exists for, so
-  the mission cannot rank it on the thing it was built to prevent.
+- Knowledge alone costs 2.3 times the control's calls and 4.7 times its cost,
+  and is the only arm that failed an attempt, running to the cost ceiling at
+  103 calls. Knowledge is not confined to that arm: A2, A4 and A5 all carry
+  it, and A4 finished every attempt, one of them in eight calls. So the block
+  does not by itself make a run expensive.
+- Navigation was not tested by its own arm. A3 called `sweep` zero times and
+  `travel_to` zero times across all three attempts. It measured whether the
+  model would take up the extra tools, and it did not. Only A5 exercised the
+  executor at all, with seven sweeps and one travel.
+- Survival was not exercised either. No combat, no death, no exhaustion and
+  no darkness decision arose. The 15.3 against 16.7 calls is route variance,
+  not a demonstrated benefit.
 
 Finding: the mission is too easy to separate the arms. The control solves it
 in 16.7 calls, where the recorded J3 baseline burned 86.3 calls per attempt
@@ -109,19 +112,34 @@ update. I'm on Elm Street with 56 movement points and 28 unexplored exits
 across 34 rooms." Then the next room, then 29 across 35, then 33 across 54.
 The mission became covering the map.
 
-The control never had that line, and solved the mission in eight calls by
-reading the game's prose: "Good, I can see there's a market square to the
-south. The bakery might be there", and two rooms later, "The description says
-the bakery is to the north. Let me go there." The game signposts its own
-world, and the summary we substituted lists exits as walked or unwalked
-without carrying what the room actually said.
+The control solved the mission in eight calls by reading the game's prose:
+"Good, I can see there's a market square to the south. The bakery might be
+there", and two rooms later, "The description says the bakery is to the north.
+Let me go there."
 
-Finding: the state block displaced the game's own signposting with a coverage
-metric, and the agent optimized the metric it was given. Adding navigation on
-top does not fix the framing, it makes the wrong thing efficient: A5 has the
-best discovery rate in the matrix at 0.75 rooms per call and found 116 rooms,
-five times the control, while taking three times as many calls to do the same
-errand.
+That prose was never taken away from the knowledge arm. It is still 36% of
+its history, and A4 shows an agent carrying the block finishing in eight calls
+like the control. What the block adds is a second, competing instruction, and
+in the failed attempt the competition was won by the coverage line: the run's
+plans used the word "unexplored" 77 times and "systematic" 34 times.
+
+The forensic reading of that attempt separates two things that the aggregate
+merges. It reached Market Square on the fourth iteration. The bakery lay
+west and it went east, which is ordinary model variance and nothing to do
+with the block. What followed is the block's contribution: instead of coming
+back to the city route, it expanded the map for another ninety calls, and it
+issued no `examine` and no `shop` at all, so it never even reached for the
+evidence the mission is judged on.
+
+Finding: the state block does not cause the first wrong turn, and it does not
+remove the game's own signposting. It turns one wrong turn into prolonged
+wandering, because the only line reporting progress rewards coverage and never
+approaches completion. Navigation does not correct the framing, it makes the
+wrong objective efficient: A5 has the best discovery rate in the matrix at
+0.75 rooms per call and found 116 rooms, five times the control, while taking
+three times as many calls to run the same errand. Its sweeps commonly walked
+24 steps and stopped on a setback limit, and one `travel_to` for a square it
+had already visited returned unreachable with zero steps.
 
 ## What the request is made of, call after call
 
@@ -170,6 +188,24 @@ linear.
   enabling a capability changes the advertised tools, so those numbers
   describe a surface no arm ran.
 - The result is about J1. It says nothing yet about the hunt.
+- Two arms measured adoption rather than machinery. A3's result is that the
+  model did not reach for the navigation tools, not that the tools are weak.
+- Route variance dominates this mission. Both the control and A4 produced an
+  eight-call run and a run three times longer, from the same configuration.
+
+## What follows
+
+- Do not turn on the current state block by default on this evidence.
+- Do not conclude navigation is ineffective. Its own arm never invoked it, and
+  the question of whether a model will adopt a tool is separate from whether
+  the tool works.
+- Do not conclude anything about survival. The mission never asked it a
+  question.
+- Do not rerun J1. It is short enough that which exit is chosen at Market
+  Square decides the result, and that is variance rather than capability.
+- Two failure shapes are worth carrying forward as real: a frontier-heavy
+  summary can turn one wrong turn into prolonged wandering, and an
+  unconstrained sweep can optimise map coverage instead of the mission.
 
 ## A defect the matrix found
 
