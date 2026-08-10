@@ -161,7 +161,17 @@ def measure_attempt(
     priced = bool(cost_values) and all(isinstance(value, (int, float)) for value in cost_values)
     cost = round(sum(float(value) for value in cost_values), 8) if priced else None
     completed = process_ok and bool(turn_ends)
-    status = "complete" if completed else "incomplete"
+    reached = rooms_within_moves(gateway, J4_MOVES)
+    # A coverage mission with no verified room numbers produced no score, and
+    # a run that cannot be scored is not a run that scored nothing. Marking
+    # it complete would enter it as a failed attempt and drag the arm down
+    # for a gap in the evidence rather than a gap in the agent.
+    unscored = journey.id == "J4" and reached is None
+    status = (
+        "evidence-unavailable" if completed and unscored
+        else "complete" if completed
+        else "incomplete"
+    )
     iterations = max(
         (int(row.get("iterations") or 0) for row in turn_ends), default=0
     )
@@ -227,10 +237,7 @@ def measure_attempt(
         character_made=any(
             event.get("kind") == "character_made" for event in gateway
         ),
-        rooms_explored=(
-            None if (reached := rooms_within_moves(gateway, J4_MOVES)) is None
-            else len(reached)
-        ),
+        rooms_explored=None if reached is None else len(reached),
         max_hit=_starting_maxima(gateway)[0],
         max_move=_starting_maxima(gateway)[1],
         capability_digest=(

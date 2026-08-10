@@ -146,7 +146,7 @@ had already visited returned unreachable with zero steps.
 Every call resends the whole conversation, so what accumulates in it is what
 the run pays for repeatedly. Measured on the largest attempt of each arm.
 
-| Arm | Calls | History chars | Game output | Result envelope | Agent prose |
+| Arm | Calls | History chars | Game output | Result envelope | Agent prose and the call's own instruction |
 |---|---:|---:|---:|---:|---:|
 | A1 survival | 20 | 12,486 | 62% | 30% | 8% |
 | A0 control | 28 | 17,071 | 56% | 31% | 13% |
@@ -163,9 +163,12 @@ arm's 217 final blocks, exactly one was a verbatim repeat.
   tool, capability, family, command, sequence and trace identifier wrapped
   around the game's text. The agent already supports sending only the text,
   and the matrix did not use it.
-- The agent's own prose rises with knowledge, from 8% in the arms without it
-  to 37% in the arm carrying the most, and much of that is a per-turn
-  acknowledgement of the state block rather than reasoning.
+- The last column is the agent's own writing plus the instruction carried by
+  the call being measured, so the three columns total the history. Assistant
+  prose alone is about a point or two lower in each row. It rises with
+  knowledge either way, from 8% in the arms without it to about 36% in the
+  arm carrying the most, and much of that is a per-turn acknowledgement of
+  the state block rather than reasoning.
 - The state block itself never accumulates. It is rewritten for each call and
   dropped afterwards, so its length is paid once and never again.
 - Places are described again on every return, and the failed attempt returned
@@ -206,10 +209,14 @@ cached tokens for about $0.182, more than half its $0.344.
   question.
 - Do not rerun J1. It is short enough that which exit is chosen at Market
   Square decides the result, and that is variance rather than capability.
-- A coverage mission is the one that would rank these capabilities. Scoring
-  the bakery runs by Midgaard rooms reached within a hundred steps, which is
-  not what they were trying to do, already separates them: A5 reached 16, 31
-  and 32, where the control reached 5, 8 and 15.
+- A coverage mission is the one that could rank these capabilities, and the
+  corrected metric detects the difference it would need to. Scored on the
+  bakery runs, A5 reached 16, 31 and 32 Midgaard rooms and the control
+  reached 5, 8 and 15. That is not evidence that A5 covers ground better.
+  Those runs stopped when they found the bakery, so the control had far
+  fewer steps in which to see anything, and A5 scored higher partly because
+  it wandered longer. The metric is ready for a controlled comparison. The
+  bakery runs cannot stand in for one.
 - Send results as text rather than as the full typed record, and treat that
   as its own condition. It changes what the model sees, so a run under it is
   not comparable with this matrix.

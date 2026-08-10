@@ -710,3 +710,22 @@ def test_a_run_with_no_verified_room_numbers_scores_unknown() -> None:
 
     assert rooms_within_moves(events, 10) is None
     assert judge(J4, events).evidence == ("no verified room numbers recorded",)
+
+
+def test_a_coverage_run_with_no_room_numbers_is_excluded_not_failed(
+    tmp_path: Path,
+) -> None:
+    """A run that cannot be scored is not a run that scored nothing.
+    Counting it as a failed attempt would drag the arm down for a gap in the
+    evidence rather than a gap in the agent."""
+    from benchmark.matrix import read_arm, render
+
+    ledger = _ledger(tmp_path, "cap-j4", "J4", ["navigation"], [
+        (False, "journey-complete", 30, 0.12, "evidence-unavailable"),
+        (True, "journey-complete", 40, 0.15),
+    ])
+
+    report = render({"cap-j4": read_arm(ledger)})
+    row = next(l for l in report.splitlines() if "navigation" in l)
+
+    assert row.endswith("| 1 | 1 | 40.0 | n/a | $0.150 | 0 | 0 | 1 |"), row
