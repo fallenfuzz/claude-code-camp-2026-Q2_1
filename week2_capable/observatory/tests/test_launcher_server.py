@@ -62,6 +62,28 @@ def test_start_request_supports_the_three_checkbox_results(reset: str) -> None:
     ).reset == reset
 
 
+def test_start_request_accepts_only_an_unreset_session_continuation() -> None:
+    session_id = "42085051-7b6e-4214-b610-308a1db4c4df"
+    request = StartRequest.decode(
+        {
+            "player_id": "poucet",
+            "reset": "none",
+            "continue_session_id": session_id,
+        }
+    )
+    assert request.continue_session_id == session_id
+
+    with pytest.raises(StartRequestError) as reset:
+        StartRequest.decode(
+            {
+                "player_id": "poucet",
+                "reset": "temple",
+                "continue_session_id": session_id,
+            }
+        )
+    assert reset.value.code == "invalid_continuation"
+
+
 def test_start_request_requires_a_bounded_initial_goal() -> None:
     assert StartRequest.decode(
         {"player_id": "poucet", "reset": "none"}
@@ -156,6 +178,68 @@ def test_start_with_goal_uses_persistent_stdin_mode(
     assert "--task-stdin" not in command
     assert process.stdin.getvalue() == b"Find the bakery.\n"
     assert process.stdin.closed is False
+
+
+def test_continue_start_reopens_the_selected_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = type(
+        "Process",
+        (),
+        {
+            "stdin": io.BytesIO(),
+            "stderr": io.BytesIO(),
+            "poll": lambda self: None,
+        },
+    )()
+    session_id = "42085051-7b6e-4214-b610-308a1db4c4df"
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    captured: dict[str, object] = {}
+
+    def popen(command: list[str], **kwargs: object) -> object:
+        captured["command"] = command
+        return process
+
+    supervisor = Supervisor(tmp_path, tmp_path / "config", idle_timeout_seconds=0)
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    monkeypatch.setattr(supervisor, "_session_ids", lambda player_id: [session_id])
+    monkeypatch.setattr(
+        supervisor,
+        "_resumable_session",
+        lambda selected, *, player_id: {"session_dir": str(session_dir)},
+    )
+    monkeypatch.setattr(supervisor, "_safe_session_dir", lambda row: session_dir)
+    monkeypatch.setattr(supervisor, "_latest_sequence", lambda path: 41)
+
+    def ready(process: object, **kwargs: object) -> str:
+        captured["ready"] = kwargs
+        return session_id
+
+    monkeypatch.setattr(supervisor, "_wait_for_ready", ready)
+    monkeypatch.setattr(supervisor, "_start_idle_watch", lambda selected: None)
+
+    result = supervisor.start(
+        StartRequest(
+            player_id="poucet",
+            reset="none",
+            objective=None,
+            continue_session_id=session_id,
+        )
+    )
+
+    assert result == session_id
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[-2:] == ["--resume-session", session_id]
+    assert captured["ready"] == {
+        "player_id": "poucet",
+        "reset": "none",
+        "before": {session_id},
+        "resume_session_id": session_id,
+        "resume_sequence": 41,
+    }
 
 
 def test_idle_session_message_starts_first_turn_and_retains_history(

@@ -83,6 +83,7 @@ class StartRequest:
     player_id: str
     reset: ResetMode
     objective: str | None
+    continue_session_id: str | None = None
 
     @classmethod
     def decode(cls, value: object) -> "StartRequest":
@@ -92,7 +93,12 @@ class StartRequest:
                 "Request body must be a JSON object.",
                 HTTPStatus.UNPROCESSABLE_ENTITY,
             )
-        unknown = set(value) - {"player_id", "reset", "objective"}
+        unknown = set(value) - {
+            "player_id",
+            "reset",
+            "objective",
+            "continue_session_id",
+        }
         if unknown:
             raise StartRequestError(
                 "invalid_request",
@@ -102,6 +108,7 @@ class StartRequest:
         player_id = value.get("player_id")
         reset = value.get("reset")
         objective = value.get("objective")
+        continue_session_id = value.get("continue_session_id")
         if not isinstance(player_id, str) or not PLAYER_ID.fullmatch(player_id):
             raise StartRequestError(
                 "invalid_player",
@@ -129,10 +136,26 @@ class StartRequest:
                 f"The initial goal must be at most {MAX_OBJECTIVE_LENGTH} characters.",
                 HTTPStatus.UNPROCESSABLE_ENTITY,
             )
+        if continue_session_id is not None and (
+            not isinstance(continue_session_id, str)
+            or not SESSION_ID.fullmatch(continue_session_id)
+        ):
+            raise StartRequestError(
+                "invalid_continuation",
+                "continue_session_id is invalid.",
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
+        if continue_session_id is not None and reset != "none":
+            raise StartRequestError(
+                "invalid_continuation",
+                "A continued session cannot also reset the character.",
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+            )
         return cls(
             player_id=player_id,
             reset=reset,
             objective=objective,
+            continue_session_id=continue_session_id,
         )
 
 
@@ -245,6 +268,15 @@ class Supervisor:
     def start(self, request: StartRequest) -> str:
         with self._lock:
             before = set(self._session_ids(request.player_id))
+            resume_sequence: int | None = None
+            if request.continue_session_id is not None:
+                resume_row = self._resumable_session(
+                    request.continue_session_id,
+                    player_id=request.player_id,
+                )
+                resume_sequence = self._latest_sequence(
+                    self._safe_session_dir(resume_row)
+                )
             command = [
                 "uv",
                 "run",
@@ -255,6 +287,8 @@ class Supervisor:
                 "--player-profile",
                 request.player_id,
             ]
+            if request.continue_session_id is not None:
+                command.extend(("--resume-session", request.continue_session_id))
             if request.objective is not None:
                 command.append("--initial-task-stdin")
             if request.reset == "baseline":
@@ -289,6 +323,8 @@ class Supervisor:
                     player_id=request.player_id,
                     reset=request.reset,
                     before=before,
+                    resume_session_id=request.continue_session_id,
+                    resume_sequence=resume_sequence,
                 )
             except Exception:
                 if process.poll() is None:
@@ -507,6 +543,8 @@ class Supervisor:
         player_id: str,
         reset: ResetMode,
         before: set[str],
+        resume_session_id: str | None = None,
+        resume_sequence: int | None = None,
     ) -> str:
         deadline = time.monotonic() + START_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
@@ -523,12 +561,23 @@ class Supervisor:
                     else HTTPStatus.BAD_GATEWAY
                 )
                 raise StartRequestError(code, detail, status)
-            candidates = [
-                row
-                for row in self._sessions(player_id)
-                if row["session_id"] not in before
-                and row["state"] == "running"
-            ]
+            if resume_session_id is not None:
+                row = self._session(resume_session_id)
+                candidates = (
+                    [row]
+                    if row is not None
+                    and row["state"] == "running"
+                    and self._latest_sequence(self._safe_session_dir(row))
+                    > (resume_sequence or 0)
+                    else []
+                )
+            else:
+                candidates = [
+                    row
+                    for row in self._sessions(player_id)
+                    if row["session_id"] not in before
+                    and row["state"] == "running"
+                ]
             if candidates:
                 session_id = str(candidates[-1]["session_id"])
                 session_dir = Path(str(candidates[-1]["session_dir"]))
@@ -540,6 +589,33 @@ class Supervisor:
             "The agent did not become ready before the start timeout.",
             HTTPStatus.GATEWAY_TIMEOUT,
         )
+
+    def _resumable_session(
+        self,
+        session_id: str,
+        *,
+        player_id: str,
+    ) -> sqlite3.Row:
+        row = self._session(session_id)
+        if row is None:
+            raise StartRequestError(
+                "continuation_not_found",
+                "The session to continue no longer exists.",
+                HTTPStatus.NOT_FOUND,
+            )
+        if str(row["player_id"]) != player_id:
+            raise StartRequestError(
+                "continuation_mismatch",
+                "The session to continue belongs to another player.",
+                HTTPStatus.CONFLICT,
+            )
+        if str(row["state"]) not in TERMINAL_STATES or bool(row["legacy"]):
+            raise StartRequestError(
+                "continuation_unavailable",
+                "Only an ended launcher session can be continued.",
+                HTTPStatus.CONFLICT,
+            )
+        return row
 
     @staticmethod
     def _ready(session_dir: Path, reset: ResetMode) -> bool:
@@ -1067,6 +1143,7 @@ class Handler(BaseHTTPRequestHandler):
                 "player_id": request.player_id,
                 "reset": request.reset,
                 "objective": request.objective,
+                "continued": request.continue_session_id is not None,
                 "state": "running",
             },
         )

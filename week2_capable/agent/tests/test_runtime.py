@@ -162,6 +162,46 @@ def test_same_character_is_rejected_with_a_typed_error() -> None:
             first.close()
 
 
+def test_ended_runtime_resumes_in_place_with_retained_evidence() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        config = _config(Path(temporary))
+        original = RuntimeSession.create(
+            config,
+            player_id="alpha",
+            character="Alpha",
+        )
+        session_id = original.identity.session_id
+        gateway_session_id = original.identity.gateway_session_id
+        original.paths.gateway_journal.write_bytes(b"retained gateway evidence")
+        original.paths.agent_log.write_text(
+            '{"phase":"turn_end"}\n',
+            encoding="utf-8",
+        )
+        original.close()
+
+        resumed = RuntimeSession.resume(
+            config,
+            session_id=session_id,
+            player_id="alpha",
+            character="Alpha",
+        )
+        try:
+            assert resumed.identity.session_id == session_id
+            assert resumed.identity.gateway_session_id == gateway_session_id
+            assert resumed.paths.gateway_journal.read_bytes() == (
+                b"retained gateway evidence"
+            )
+            assert resumed.paths.agent_log.read_text(encoding="utf-8") == (
+                '{"phase":"turn_end"}\n'
+            )
+            row = resumed.registry.session(session_id)
+            assert row is not None
+            assert row["state"] == "starting"
+            assert row["ended_at"] is None
+        finally:
+            resumed.close()
+
+
 def test_restricted_child_environment_keeps_only_selected_secrets() -> None:
     with tempfile.TemporaryDirectory() as temporary:
         config = _config(Path(temporary))

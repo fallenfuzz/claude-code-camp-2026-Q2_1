@@ -22,6 +22,7 @@ type StartResponse = {
   player_id: string;
   reset: "none" | "temple" | "baseline";
   objective: string | null;
+  continued: boolean;
   state: "running";
 };
 type StartError = {
@@ -196,6 +197,7 @@ export function Launcher({ theme, onThemeChange }: {
   const [allPlayers, setAllPlayers] = useState(false);
   const [temple, setTemple] = useState(false);
   const [baseline, setBaseline] = useState(false);
+  const [continuePrevious, setContinuePrevious] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startMessage, setStartMessage] = useState("");
   const [objective, setObjective] = useState("");
@@ -282,6 +284,9 @@ export function Launcher({ theme, onThemeChange }: {
         body: JSON.stringify({
           player_id: selectedRow.id,
           reset,
+          ...(continuePrevious && selectedRow.latest
+            ? { continue_session_id: selectedRow.latest.id }
+            : {}),
           ...(initialGoal.length > 0 ? { objective: initialGoal } : {}),
         }),
       });
@@ -314,7 +319,7 @@ export function Launcher({ theme, onThemeChange }: {
         >
           <div className="launch-transition-card">
             <span aria-hidden="true" className="launch-transition-pulse" />
-            <p>Starting {selectedRow?.label ?? "the agent"}</p>
+            <p>{continuePrevious ? "Continuing" : "Starting"} {selectedRow?.label ?? "the agent"}</p>
             <small>Connecting the agent and opening Live automatically…</small>
           </div>
         </div>
@@ -382,22 +387,51 @@ export function Launcher({ theme, onThemeChange }: {
                   />
                 </label>
                 <div className="checks">
+                  <label title="Append to the previous Observatory journey, preserving its map and recorded evidence.">
+                    <input
+                      type="checkbox"
+                      checked={continuePrevious}
+                      disabled={
+                        starting
+                        || Boolean(selectedRow?.latest?.live)
+                        || !selectedRow?.latest
+                      }
+                      onChange={(event) => {
+                        setContinuePrevious(event.target.checked);
+                        if (event.target.checked) {
+                          setTemple(false);
+                          setBaseline(false);
+                        }
+                      }}
+                    />
+                    Continue last session
+                  </label>
                   <label title="Move the player to the Temple of Midgaard before the session starts. Stats and items are untouched.">
-                    <input type="checkbox" checked={temple} disabled={starting || Boolean(selectedRow?.latest?.live)} onChange={(event) => {
+                    <input type="checkbox" checked={temple} disabled={starting || continuePrevious || Boolean(selectedRow?.latest?.live)} onChange={(event) => {
                       setTemple(event.target.checked);
-                      if (event.target.checked) setBaseline(false);
+                      if (event.target.checked) {
+                        setBaseline(false);
+                        setContinuePrevious(false);
+                      }
                     }} />
                     Reset to Temple
                   </label>
                   <label title="Restore the player to the versioned baseline start. Inventory is untouched.">
-                    <input type="checkbox" checked={baseline} disabled={starting || Boolean(selectedRow?.latest?.live)} onChange={(event) => {
+                    <input type="checkbox" checked={baseline} disabled={starting || continuePrevious || Boolean(selectedRow?.latest?.live)} onChange={(event) => {
                       setBaseline(event.target.checked);
-                      if (event.target.checked) setTemple(false);
+                      if (event.target.checked) {
+                        setTemple(false);
+                        setContinuePrevious(false);
+                      }
                     }} />
                     Reset to baseline
                   </label>
                 </div>
-                <p className="hint">Unchecked resumes the game normally.</p>
+                <p className="hint">
+                  {continuePrevious
+                    ? "Keeps the previous map, timeline, objective history, and cost. The model starts with a fresh context."
+                    : "Creates a separate Observatory session at the character's current game position."}
+                </p>
                 <button
                   className="go"
                   disabled={
@@ -407,7 +441,9 @@ export function Launcher({ theme, onThemeChange }: {
                   }
                   onClick={startSession}
                 >
-                  {starting ? "Starting…" : `Start session as ${selectedRow?.label ?? "player"} →`}
+                  {starting
+                    ? continuePrevious ? "Continuing…" : "Starting…"
+                    : `${continuePrevious ? "Continue session" : "Start session"} as ${selectedRow?.label ?? "player"} →`}
                 </button>
                 {startMessage && <p className="start-message" role="alert">{startMessage}</p>}
               </div>

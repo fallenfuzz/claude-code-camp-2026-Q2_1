@@ -9,8 +9,8 @@ tasks:
     # Model must exist in the catalog (boukensha/models.yaml or a .boukensha
     # override).
     provider: anthropic
-    #model: claude-haiku-4-5
-    model: claude-sonnet-5
+    model: claude-haiku-4-5
+    #model: claude-sonnet-5
     #provider: gemini
     #model: gemini-3.5-flash
     #provider: openai

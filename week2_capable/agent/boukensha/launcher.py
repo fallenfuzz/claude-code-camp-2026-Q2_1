@@ -13,7 +13,7 @@ from typing import Sequence
 from .config import Config
 from .errors import ConfigError
 from .objective import ObjectiveContext
-from .runtime import CharacterAlreadyRunning, RuntimeSession
+from .runtime import CharacterAlreadyRunning, RuntimeIdentityError, RuntimeSession
 from .version import __version__
 
 PROVIDER_SECRET_NAMES = {
@@ -44,6 +44,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--player-profile",
         help="configured player profile, default gateway.connection.player_profile",
+    )
+    parser.add_argument(
+        "--resume-session",
+        help="append to one ended launcher session instead of creating a new one",
     )
     parser.add_argument(
         "--task-stdin",
@@ -97,6 +101,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--task-stdin received an empty task")
     if arguments.reset_baseline and arguments.relocate_temple:
         parser.error("--reset-baseline and --relocate-temple are mutually exclusive")
+    if arguments.resume_session and (
+        arguments.reset_baseline or arguments.relocate_temple
+    ):
+        parser.error("--resume-session cannot reset or relocate the character")
     if (
         not arguments.task_stdin
         and (
@@ -130,12 +138,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     character = str(profile.get("character") or player_id)
 
     try:
-        runtime = RuntimeSession.create(
-            config.dir,
-            player_id=player_id,
-            character=character,
+        runtime = (
+            RuntimeSession.resume(
+                config.dir,
+                session_id=arguments.resume_session,
+                player_id=player_id,
+                character=character,
+            )
+            if arguments.resume_session
+            else RuntimeSession.create(
+                config.dir,
+                player_id=player_id,
+                character=character,
+            )
         )
-    except CharacterAlreadyRunning as error:
+    except (CharacterAlreadyRunning, RuntimeIdentityError) as error:
         parser.error(str(error))
 
     child_args = [sys.executable, "-m", "boukensha.runtime_child"]

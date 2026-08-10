@@ -354,6 +354,27 @@ class SessionRegistry:
         self._append_lifecycle(session_id, state, detail or {})
         self._db.commit()
 
+    def reopen(self, session_id: str) -> None:
+        """Return one terminal row to starting while keeping its identity."""
+
+        now = _now()
+        cursor = self._db.execute(
+            """
+            UPDATE sessions
+            SET state = 'starting', pid = ?, updated_at = ?, ended_at = NULL,
+                exit_code = NULL, stop_mode = NULL
+            WHERE session_id = ? AND state IN ('stopped', 'crashed')
+              AND legacy = 0
+            """,
+            (os.getpid(), now, session_id),
+        )
+        if cursor.rowcount != 1:
+            raise RuntimeIdentityError(
+                f"session {session_id!r} cannot be resumed"
+            )
+        self._append_lifecycle(session_id, "starting", {"resumed": True})
+        self._db.commit()
+
     def sessions(self, *, player_id: str | None = None) -> list[dict[str, Any]]:
         sql = "SELECT * FROM sessions"
         args: tuple[Any, ...] = ()
@@ -427,6 +448,72 @@ class RuntimeSession:
             _create_runtime_paths(paths)
             _write_manifest(identity, paths)
             registry.register(identity, paths)
+        except Exception:
+            registry.close()
+            lock.release()
+            raise
+        return cls(identity, paths, registry, lock)
+
+    @classmethod
+    def resume(
+        cls,
+        config_dir: Path,
+        *,
+        session_id: str,
+        player_id: str,
+        character: str,
+    ) -> "RuntimeSession":
+        """Reopen one ended runtime without splitting its retained evidence."""
+
+        root = config_dir.expanduser().resolve()
+        registry = SessionRegistry(root)
+        row = registry.session(session_id)
+        if row is None:
+            registry.close()
+            raise RuntimeIdentityError(f"unknown session {session_id!r}")
+        if row["player_id"] != player_id or row["character"] != character:
+            registry.close()
+            raise RuntimeIdentityError(
+                "resumed session does not belong to the selected player"
+            )
+        if row["state"] not in {"stopped", "crashed"} or row["legacy"]:
+            registry.close()
+            raise RuntimeIdentityError(
+                "only an ended launcher session can be resumed"
+            )
+        identity = RuntimeIdentity(
+            player_id=str(row["player_id"]),
+            character=str(row["character"]),
+            agent_id=str(row["agent_id"]),
+            session_id=str(row["session_id"]),
+            gateway_session_id=str(row["gateway_session_id"]),
+            experiment_id=row["experiment_id"],
+            run_id=row["run_id"],
+        )
+        paths = RuntimePaths.for_identity(root, identity)
+        if (
+            Path(str(row["session_dir"])).resolve() != paths.session_dir
+            or Path(str(row["manifest_path"])).resolve() != paths.manifest
+            or not paths.manifest.is_file()
+            or not paths.control_token.is_file()
+        ):
+            registry.close()
+            raise RuntimeIdentityError("resumed session runtime paths are invalid")
+        try:
+            manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            registry.close()
+            raise RuntimeIdentityError("resumed session manifest is invalid") from error
+        expected = identity.envelope() | {"character": identity.character}
+        if any(manifest.get(name) != value for name, value in expected.items()):
+            registry.close()
+            raise RuntimeIdentityError("resumed session manifest identity mismatch")
+
+        lock = CharacterLock(root, character)
+        lock.acquire(identity)
+        try:
+            registry.reconcile_character(character)
+            registry.reopen(session_id)
         except Exception:
             registry.close()
             lock.release()
