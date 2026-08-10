@@ -426,6 +426,7 @@ def _ledger(root: Path, name: str, journey: str, capabilities, rows) -> Path:
             "attempt_id": f"{name}-{index:02d}",
             "journey_id": journey,
             "status": status,
+            "result_mode": "full",
             "success": success,
             "stop_reason": stop,
             "model_calls": calls,
@@ -450,8 +451,8 @@ def test_the_matrix_compares_arms_a_single_report_cannot(tmp_path: Path) -> None
 
     report = render({"cap-a0": read_arm(control), "cap-a4": read_arm(armed)})
 
-    assert "| J1 | none | cap-a0 | 1 | 0 |" in report
-    assert "| J1 | knowledge+survival | cap-a4 | 1 | 1 |" in report
+    assert "| J1 | full | none | cap-a0 | 1 | 0 |" in report
+    assert "| J1 | full | knowledge+survival | cap-a4 | 1 | 1 |" in report
     # The bounded attempt gives a floor, so it is never averaged as a result.
     assert "| n/a |" in report
     assert "/sessions?run=" in report
@@ -729,3 +730,27 @@ def test_a_coverage_run_with_no_room_numbers_is_excluded_not_failed(
     row = next(l for l in report.splitlines() if "navigation" in l)
 
     assert row.endswith("| 1 | 1 | 40.0 | n/a | $0.150 | 0 | 0 | 1 |"), row
+
+
+def test_the_same_capabilities_under_two_result_modes_are_two_rows(
+    tmp_path: Path,
+) -> None:
+    """How results are shaped changes what the model reads, so two arms
+    differing only in that are two conditions and must not merge."""
+    from benchmark.matrix import read_arm, render
+
+    arms = {}
+    for mode in ("full", "minimal"):
+        ledger = tmp_path / f"cap-a0-{mode}"
+        ledger.mkdir()
+        (ledger / "attempts.jsonl").write_text(json.dumps({
+            "attempt_id": f"{mode}-01", "journey_id": "J2", "status": "complete",
+            "result_mode": mode, "capabilities": [], "success": mode == "minimal",
+            "stop_reason": "completed", "model_calls": 20, "cost_usd": 0.10,
+        }) + "\n", encoding="utf-8")
+        arms[ledger.name] = read_arm(ledger)
+
+    report = render(arms)
+
+    assert "| J2 | full | none |" in report
+    assert "| J2 | minimal | none |" in report

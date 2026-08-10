@@ -41,6 +41,9 @@ class Attempt:
     arm: str
     attempt_id: str
     journey: str
+    #: How results were shaped for the model. Two arms that differ only in
+    #: this are two conditions, so it belongs in what tells arms apart.
+    result_mode: str
     capabilities: tuple[str, ...] | None
     success: bool
     censored: bool
@@ -84,6 +87,11 @@ def read_arm(ledger: Path, *, allow_unknown: bool = False) -> list[Attempt]:
         raise MatrixError(
             f"{ledger.name}: mixes journeys {sorted(journeys)}"
         )
+    modes = {str(row.get("result_mode", "unknown")) for row in rows}
+    if len(modes) > 1:
+        raise MatrixError(
+            f"{ledger.name}: mixes result modes {sorted(modes)}"
+        )
     sets = {_capabilities(row) for row in rows}
     if len(sets) > 1:
         raise MatrixError(
@@ -108,18 +116,20 @@ def render(arms: Mapping[str, list[Attempt]]) -> str:
     for attempts in arms.values():
         for attempt in attempts:
             grouped.setdefault(
-                (attempt.journey, attempt.capabilities), []
+                (attempt.journey, attempt.result_mode, attempt.capabilities),
+                [],
             ).append(attempt)
 
     lines.append(
-        "| journey | capabilities | arms | attempts | successes | "
+        "| journey | results | capabilities | arms | attempts | successes | "
         "mean calls | mean rooms | mean cost | deaths | censored | excluded |"
     )
     lines.append(
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     )
-    for (journey, capabilities), every in sorted(
-        grouped.items(), key=lambda item: (item[0][0], _label(item[0][1]))
+    for (journey, mode, capabilities), every in sorted(
+        grouped.items(),
+        key=lambda item: (item[0][0], item[0][1], _label(item[0][2])),
     ):
         attempts = [a for a in every if a.eligible]
         priced = [a.cost for a in attempts if a.cost is not None]
@@ -131,7 +141,8 @@ def render(arms: Mapping[str, list[Attempt]]) -> str:
         ]
         names = sorted({a.arm for a in every})
         lines.append(
-            f"| {journey} | {_label(capabilities)} | {', '.join(names)} "
+            f"| {journey} | {mode} | {_label(capabilities)} "
+            f"| {', '.join(names)} "
             f"| {len(attempts)} "
             f"| {sum(a.success for a in attempts)} "
             f"| {_mean(measured)} "
@@ -177,6 +188,7 @@ def _attempt(arm: str, row: Mapping[str, Any]) -> Attempt:
         arm=arm,
         attempt_id=attempt_id,
         journey=str(row.get("journey_id", "unknown")),
+        result_mode=str(row.get("result_mode", "unknown")),
         capabilities=_capabilities(row),
         success=bool(row.get("success", False)),
         censored=str(row.get("stop_reason", "")).startswith(BOUNDED),
