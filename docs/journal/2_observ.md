@@ -2,239 +2,286 @@
 
 ## Technical Goal
 
-- Make the agent observable end to end: capture what the game actually sent,
-  what the agent believed, and what it cost, and be able to replay any run
-  afterwards from that evidence.
-- Build the foundation our web monitor (the Observatory) needs: every piece of
-  evidence tied to exactly one player and one session.
+Make the agent observable before making it more capable. Week 1 produced a
+working loop, live TUI, finished-run viewer, context management, and cost
+accounting. Week 2 must reveal what happens below and around that loop:
+
+- what the model was asked and what it returned
+- what each tool requested and what the gateway executed
+- what crossed the Telnet connection, including unsolicited game events
+- what the parser inferred and what remained uncertain
+- what the agent believed, what the game evidence supports, and what the run cost
+- how to follow the same evidence live and replay it afterwards
+
+The result should let someone start with a complete journey, then reach the
+exact retained event that explains any cost, delay, decision, state change, or
+outcome.
 
 ## Technical Uncertainty
 
-- I'm uncertain whether local instrumentation will actually explain the agent's
-  behaviour, or just pile up logs nobody can read.
-- I'm uncertain how much of the game's output can be understood with plain
-  parsing, without paying a model to read it.
-- I'm uncertain what really drives run cost. My assumption is bigger tool
-  results mean bigger bills, but I haven't verified it.
+- I am uncertain whether more instrumentation will explain behaviour or merely
+  create more logs to search.
+- I am uncertain how much MUD output can be typed deterministically without a
+  model call.
+- I am uncertain whether reducing tool-result size actually reduces journey
+  cost, since less context may also make the agent take a worse path.
+- I am uncertain how to compare the agent's claimed result with game evidence
+  without turning one interpretation into false truth.
+- I am uncertain whether one interface can remain understandable while joining
+  model, agent, tool, gateway, Telnet, MUD, state, time, and cost evidence.
 
 ## Technical Hypotheses
 
-- A deterministic layer that sits on the telnet wire and types the game's
-  output should remove repeated LLM work and make failures explainable.
-- The hard part will be keeping the raw evidence for debugging without flooding
-  the agent's context with it.
+- A gateway that owns the Telnet wire will make runs replayable and expose
+  failures that agent logs alone cannot prove.
+- Rules close to the wire will type most common game output more cheaply and
+  consistently than another model call.
+- Tool-result size will be a major driver of run cost.
+- Raw evidence and derived interpretations must remain separate, with missing
+  or ambiguous evidence kept visible.
+- An Observatory organized around one session timeline will be more useful than
+  separate viewers for logs, maps, costs, and experiments.
 
 ## Technical Observations
 
-**The gateway**
+### 1. Owning the wire exposed the first missing layer
 
-This week is about observability, so we own the wire. Our gateway holds the
-telnet session, records every byte in both directions, and types the output
-into one per-session journal that both live view and replay read.
-Detail: [gateway README](../../week2_capable/gateway/README.md).
+Week 1 could show the agent's recorded tool calls and model exchanges, but it
+could not independently prove everything the MUD sent or correlate an action
+through every boundary. We replaced the external MUD manager with a Python
+gateway that owns login, Telnet transport, command execution, parsing, and an
+append-only SQLite journal.
 
-- We tried shrinking the agent's tool surface by grouping related actions into
-  fewer, bigger tools. It backfired: the tool count dropped but the schema grew
-  to 7,494 bytes against 6,290 for the direct 25 tools, because the parameters
-  and enums just move inside. We kept the direct surface.
-- The colour of the game's ANSI text turned out to be a strong parsing signal.
-  Room titles, combat, and prompts each have their own look, so colour-aware
-  rules type about 86% of lines with no model call. The unmatched 14% keep their
-  raw bytes, so the parser's blind spots are a list to fix, not silent loss.
+- The journal retains raw wire evidence, typed observations, trace identities,
+  timestamps, and sequence numbers in one per-session record.
+- A committed journal was replayable but initially not live across processes.
+  Writer callbacks ended at the writer process. Sequence cursors over the
+  durable journal made live delivery and replay use the same contract.
+- Grouping 25 direct tools into fewer tools did not shrink the model surface.
+  The grouped schema measured 7,494 bytes against 6,290 bytes for the direct
+  surface. Tool count alone was therefore not a useful optimization target.
+- ANSI colour was usable protocol evidence. Colour-aware rules typed 2,644 of
+  3,067 recorded lines without a model. The remaining 423 lines stayed linked
+  to their raw evidence instead of being silently guessed.
 
-**Benchmarks**
+Gateway architecture and evidence boundaries:
+[gateway README](../../week2_capable/gateway/README.md).
 
-We benchmark short goal-driven journeys (find the bakery, read the menu),
-judged from the recorded evidence, and reset the player to the same start
-before every run. One early run silently started inside the bakery instead of
-the Temple, and its results were worthless.
-Detail: [benchmark plan](../plans/week2_observ/benchmark.md).
+### 2. Reproducible benchmarks corrected plausible but wrong conclusions
 
-- We ran the same journey ten times per response style. Fully structured tool
-  results are 59.8% larger than raw text, yet raw and full journey costs came
-  out nearly equal, and the stripped-down "minimal" style was the most expensive
-  of the three (28.6% over raw), because the agent needed 53.1% more calls to
-  make up for the missing information. So we now judge a response style by the
-  behaviour it produces over a whole journey, not by its size per message.
-- We gave the agent a goal it couldn't easily reach: find the Massive Minotaur
-  in the newbie zone. It gave up after 90 tool calls while reporting the journey
-  as complete. That gap, believing it finished when it hadn't, is the central
-  design idea of the Observatory's belief-versus-reality view.
+The benchmark work began by trying to reproduce the Week 1 working figure of
+448 tool calls. The retained sessions supported two different counts: 451
+executed calls and 447 calls visible in a later prompt. Four terminal calls
+never reached another prompt, and the value 448 had no reproducible counting
+rule.
 
-**Multi-player foundation**
+The first bakery comparison also produced a tempting false conclusion. One
+full-result run succeeded while raw and minimal runs failed, suggesting that
+more metadata helped. A later raw run was invalid because another client left
+the character inside the bakery, so reset had not established the promised
+starting state.
 
-Two agents can play at once as different characters, and the Observatory
-switches between them, so isolation had to be real rather than cosmetic.
-Detail: [multiplayer plan](../plans/week2_observ/multiplayer.md).
+The corrected experiment reset and verified the character before model spend,
+then ran ten journeys for each result form:
 
-- A per-character lock is held by the kernel, so two agents cannot drive the
-  same character, and because the OS drops the lock when a process dies, a crash
-  never leaves a character wedged. A hermetic two-agent test proves nothing
-  leaks between players: files, costs, tokens, or knowledge.
-- Reset restores a named baseline through a short-lived admin child, then
-  reconnects and checks the result field by field before a run counts. When it
-  fails halfway the session is quarantined and says so. We chose not to pretend
-  a rollback happened, because the game itself cannot be rolled back.
+| Result form | Success | Mean cost | Mean calls |
+|---|---:|---:|---:|
+| Raw | 10/10 | $0.03092625 | 13.0 |
+| Minimal | 10/10 | $0.03975862 | 19.9 |
+| Full | 10/10 | $0.03152708 | 13.8 |
 
-**The Observatory**
+- Full results contained 59.8 percent more bytes than raw over identical
+  observations, but raw and full journey costs overlapped.
+- Minimal used 53.1 percent more calls and cost 28.6 percent more than raw in
+  this sample.
+- Path length dominated the small payload difference. Ten repeated runs
+  overturned the conclusion suggested by one sample.
 
-The web monitor is being built against the mockups, starting from the shared
-shell and design system.
-Detail: [observatory README](../../week2_capable/observatory/README.md).
+The full methods, exclusions, measurements, and caveats are in
+[Week 2 experiments and findings](../reports/week2_experiments.md).
 
-- Source health became useful when it moved beside the evidence it could
-  weaken. Keeping it in the global header made instrumentation look like a
-  destination instead of an explanation.
-- Steering a live agent from the Observatory needed a labelling rule more than
-  a transport: an operator message is recorded as operator guidance, so it can
-  never masquerade as the agent's own reasoning, observed game state, or
-  benchmark evidence when the session is replayed later.
-- A cumulative cost curve can reconcile a run while the retained per-response
-  fields remain materially lower. Keeping both values visible turns a silent
-  mismatch into an instrumentation finding.
-- Live intervention became safe when it moved to the boundary between agent
-  iterations. Guidance can enter as a labelled operator message, while an
-  in-flight model request remains an honest non-interruptible fact.
-- Rendering the 1,878-room atlas was cheap, but it still could not locate the
-  live agent without a retained stable room number. Scale and epistemic
-  correlation are independent observability problems.
-- A safe experiment runner needs two budget proofs: a preflight maximum
-  derived from planned samples, and a runtime ledger that refuses the next
-  sample unless its full ceiling still fits. One cumulative cap cannot prove
-  both.
-- Natural language is not the security boundary of an evidence copilot. The
-  boundary is the typed query that carries its source and temporal scope
-  through planning, optional translation, execution, and citation navigation.
-  Validating only the first planner leaves a translated query able to cross
-  the very boundary the interface promises.
-- We ended up with two plausible sources of what a player knows, the cumulative
-  per-player database and a projection recomputed from a single run, and they
-  disagree by construction since a run only sees itself. The fix was rank, not
-  merge: the database is the one authoritative source and the projection is
-  demoted to a labelled per-session lens, so a reader cannot mistake one for
-  the other.
-- A stable live interface starts with a URL-backed identity and lifecycle
-  boundary. Building that shell before its data regions prevents an empty map
-  from looking authoritative and gives each later layer one explicit contract.
-- Visual continuity depends on carrying the established component treatment,
-  not merely its color tokens. Extra opacity or an eager responsive collapse
-  can change the hierarchy even when every underlying color is identical.
-- A session already owns its player, so presenting both as independent
-  selectors creates impossible combinations. One context switcher makes the
-  viewing identity atomic and gives each lifecycle state one valid action set.
-- A growing map needs separate world and camera coordinates. Re-normalizing
-  the whole drawing around new extrema moves every old room even when the
-  layout itself is deterministic. Fixed world coordinates let the camera
-  follow the agent without rewriting learned geography.
-- Game sector flags describe engine terrain, not always the room a person sees.
-  A reviewed observer-owned override lets the map call a sewer underground and
-  a post office civic while preserving the original world files as evidence.
-- Frontier marks become trustworthy when they are projected from retained
-  exits after room identity is canonicalized. Drawing first and deduplicating
-  later can make one learned doorway appear as several unknown paths.
-- Map presentation and camera remain separate state, but their semantics are
-  not always independent. Focus can permit bounded local inspection while
-  Lantern cannot, because only Focus hides learned topology. Projecting that
-  hidden topology from stable room positions against the live frame keeps its
-  continuation cue truthful as the camera moves.
-- A fixed inspector can preserve map context when its footprint becomes a
-  camera inset rather than a layout mutation. The selected room stays visible,
-  and the learned coordinates remain honest.
-- Correct evidence can still look untrustworthy when observer facts and agent
-  observations share one provenance list. A visible boundary in the interface
-  should match the boundary in the data.
-- A legend is evidence too. Deriving its rows from the active projection keeps
-  hidden frontier and visit marks from being explained as if they were visible.
-- Entering Manual is a behavior change, not a camera transform. Preserving the
-  exact center and scale at the gesture boundary removes the jump that makes a
-  map feel untrustworthy even when every coordinate is correct.
-- A camera should measure the pane the investigator can actually see. Focus
-  density belongs to room selection, not camera scale: complete shells can
-  adapt around the actual overlay rectangles while the room size and Follow
-  center remain stable. Treating a small dock as a full-width band discards
-  useful map context without making any evidence safer. A room's title and
-  badges belong to its fitted footprint because clipping them changes the
-  evidence the room appears to carry. A geometrically valid fill can still
-  lie about topology when it skips a bridge, so the projected set must also be
-  the agent's connected component.
-- Coordination needs one small authoritative turn record. Searching an
-  append-only discussion log missed approvals and replies, while a four-line
-  owner, ask, reference, and timestamp handoff made the next action explicit.
-- A plausible measurement is not evidence when its capture is missing, its
-  viewport differs from the product, or its replay exercises another client
-  pipeline. Stating the gap is more useful than publishing a number that proves
-  the wrong claim.
-- An append-only log can retain every true event while a projection still
-  invents a journey. Control receipts must be traversal boundaries, otherwise
-  an administrator moving a player looks exactly like the player discovering
-  a path.
-- Live status is trustworthy only when each value keeps its own observation
-  clock. Prompt vitals, score maxima, tool calls, and response economics can
-  all be true at different moments.
-- Continuous progress measurements make a threshold legible before it fires.
-  Lifecycle and capture guards prevent those measurements from implying
-  precision the retained prefix cannot support.
-- Historical inspection needs two simultaneous truths: the selected prefix and
-  the latest retained snapshot. Without the second, stepping backward erases
-  the future landmarks needed to step forward or return to live.
-- A compatibility field must preserve its original meaning across new control
-  paths. Operator guidance is user-shaped prompt text, but treating it as the
-  objective would make a Nudge silently rewrite the goal.
-- A timestamped event belongs to the first replay prefix whose retained time
-  includes it. Correlating operator control to the preceding gateway sequence
-  draws a plausible marker that disappears when selected.
-- A map legend explains the visual grammar, not only the marks present in one
-  camera frame. Stable keys for frontier, continuation, visit, mob, and object
-  symbols keep a live update from introducing unexplained evidence.
-- An idle runtime has to retain authored intent before its first turn begins.
-  Otherwise the exact Goal can drive the agent while the observer can prove
-  only an unstructured compatibility prompt.
-- An overlay fixture should test the camera contract as well as its text. A
-  truthful combat panel can still hide the room it explains when its footprint
-  is absent from Focus projection.
-- A combat summary answers that a fight exists, but not what is happening.
-  Keeping literal MUD lines in retained order preserves the fight's tempo and
-  lets visual emphasis improve scanability without inventing damage values.
-- Command replies are not the whole live world. Combat ticks arrive between
-  commands with prompt vitals, so retaining unsolicited bytes without parsing
-  them leaves both the fight stream and character health stale.
-- A completed agent turn is not a completed observed session. Reusing a
-  one-shot launcher made normal model completion look like a lifecycle stop,
-  while a persistent host can wait safely behind an explicit idle timeout.
-- A session catalog can render the right record and still open the wrong
-  product. Reusing the typed Live route builder in every session entry prevents
-  one legacy query from escaping the current Observatory surface.
-- An objective proves what the agent is pursuing, not that a turn is running.
-  One retained delivery path can let a Nudge enter an active iteration while
-  the same composer wakes an idle persistent agent.
-- Durable acceptance is not delivery. An iteration-only message can remain
-  pending forever when a turn ends, so retained control needs a wake path that
-  guarantees another consumption boundary without duplicating the directive.
-- Recalculating a deterministic map with the same placer is not a reflow.
-  Haon-Dor makes compass geometry impossible through self-loop and
-  non-reciprocal exits, so a useful redraw minimizes crossings across derived
-  layouts while preserving the retained evidence underneath.
-- Timeline buttons form a state machine, not a loose action list. Pause needs a
-  visible Resume state, directional steps need adjacent retained events, and
-  returning to live is meaningful only while inspecting history.
-- Goal epochs and agent turns are intersecting timelines, not a strict tree. A
-  goal can change inside a retained turn, so each iteration must link to the
-  goal active at its boundary without rewriting the true turn structure.
+### 3. A completed agent turn was not proof of a completed journey
+
+The long navigation probe asked the agent to find the Massive Minotaur. It
+visited 17 distinct positions and stopped after 90 tool calls while reporting
+completion, but no retained game observation satisfied the goal predicate.
+
+- The run cost $0.21086010, about 6.7 times the full-result bakery mean.
+- Repeated junctions showed that movement inefficiency increased both the
+  number of calls and the cost of later calls as the prompt grew.
+- Duplicate room titles left the final position ambiguous. The tracker
+  preserved both candidates instead of inventing one location.
+- Per-response cost fields summed to $0.0499 because they omitted cache-read
+  charges. Repricing from retained usage classes reconciled the response curve
+  exactly to the authoritative turn total.
+
+This run changed the product question. The important result was not merely
+that the agent failed. It was that agent belief, game-grounded outcome,
+position confidence, path repetition, and cost could disagree while each
+remained individually plausible.
+
+### 4. Multiple players made evidence identity a correctness boundary
+
+Running two agents at once required every artifact to belong to one player and
+one session. A global "current session" or directory scan would allow evidence
+from one character to appear under another.
+
+- The launcher registry became the source of session identity and lifecycle.
+- Each player owns separate session evidence, knowledge, cost, and control
+  state.
+- A kernel-held character lock prevents two agents from driving the same
+  character and disappears automatically after a crash.
+- Reset uses a short-lived administrator child, reconnects the mortal session,
+  and verifies the resulting state field by field.
+- A partial reset quarantines the session because the MUD cannot provide a real
+  rollback.
+
+The isolation and reset contract is described in
+[the multiplayer plan](../plans/week2_observ/multiplayer.md).
+
+### 5. The first Observatory problem was organization, not missing panels
+
+The evidence sources quickly outgrew a traditional log viewer. Separate views
+could each be correct while leaving the reader to reconstruct causality by
+hand. The Observatory therefore uses one selected player, session, evidence
+prefix, and subject across Live, Sessions, Experiments, and Knowledge.
+
+The first feature-rich frontend still failed as an observability surface. It
+gave capabilities space without preserving a clear journey hierarchy or the
+binding visual language. The presentation was rebuilt while retaining the
+typed API, evidence contracts, capability transport, dependencies, and test
+harness. That separation was valuable: evidence semantics could remain stable
+while the product surface changed completely.
+
+The Sessions design also borrowed a small set of proven interaction ideas:
+[Honeycomb](https://docs.honeycomb.io/reference/honeycomb-ui/query/trace-waterfall)
+keeps hierarchy, time, and selected detail together,
+[Datadog](https://docs.datadoghq.com/tracing/trace_explorer/trace_view/)
+focuses a subtree without changing its source trace,
+[Grafana](https://grafana.com/docs/grafana/latest/visualizations/explore/trace-integration/)
+pivots between correlated signals, and
+[Langfuse](https://langfuse.com/docs/observability/overview) treats model calls
+and tools as nested measured work. The useful lesson was one execution spine
+with progressive drill-down, not copying any product's dashboard.
+
+- Source health belongs beside the claim it can weaken, not as a destination
+  in the global header.
+- Wire, Parsed, Rendered, Believed, and Truth are separate evidence forms.
+  Missing forms remain visible rather than being filled by another layer.
+- The cumulative player knowledge store and a single-session reconstruction
+  disagree by construction. The player store is authoritative for cumulative
+  knowledge, while the run projection is a labelled session lens.
+- Natural-language questions compile to typed, read-only operations with an
+  explicit player, session, and temporal scope. Optional model translation
+  does not receive the evidence and cannot widen that scope.
+
+Current product boundaries and implemented capabilities:
+[Observatory README](../../week2_capable/observatory/README.md).
+
+### 6. Live observation exposed events the command loop did not own
+
+Watching real sessions found several gaps that request-response tests did not
+show:
+
+- Combat text and prompt vitals can arrive between commands. Capturing only
+  command replies left both the fight stream and health stale.
+- Administrative relocation looked like learned traversal until reset and
+  control receipts became explicit continuity boundaries.
+- Prompt vitals, score maxima, tool calls, and response economics can all be
+  true at different moments. Each value needs its own observation sequence.
+- A completed model turn originally stopped the observed session because the
+  launcher reused a one-shot task path. A persistent host now waits for another
+  goal or message and stops only through explicit control or a configurable
+  idle timeout.
+- Accepting an operator message was not the same as delivering it. An idle
+  agent required a wake path so a retained Goal or Nudge would reach another
+  consumption boundary exactly once.
+
+These failures made replay part of Live rather than a separate after-the-fact
+feature. A historical prefix and the latest retained snapshot coexist so the
+reader can step backward, step forward, or return to live without erasing
+future landmarks.
+
+### 7. A universal session needed one story and a stable temporal identity
+
+Launcher runs and experiment runs now open through the same recorded-session
+projection. The useful structure was the execution hierarchy, while cost and
+time stayed on the records that actually own them.
+
+- Counting response cost again on turn-end records doubled believable-looking
+  totals. Response ownership made each turn and run sum reconcile.
+- Trace correlation placed most gateway evidence under its agent iteration.
+  Records without support stay in an explicit run-scoped group.
+- The full wire body is useful at the bottom of an investigation, but noisy at
+  the top. It now loads only after selecting one integrity-checked wire record.
+- The first pane-based workspace still made the reader reconcile summaries,
+  rows, filters, and an inspector. Replacing it with one chronological Story,
+  plus linked Map and Cost projections, made the evidence hierarchy readable
+  before any drill-down.
+- Multiple goals exposed a subtler identity bug: iteration numbers restart
+  inside each turn. A regression fixture with turn 1 iteration 1 and turn 2
+  iteration 1 would merge under a numeric key. Selection and replay now use the
+  turn and iteration together, while applied Goals start epochs and Nudges
+  remain attached to the active epoch.
+- Natural-language Ask cannot be represented by keyword-triggered evidence
+  lookup. A question about an objective needs model-planned retrieval,
+  deterministic evaluation, grounded synthesis, and verified citations.
+- Searching nested request bodies made an old room name match most later
+  iterations through accumulated history. Story search now uses readable
+  labels and previews, while exact bodies remain available in drill-down.
+
+The evidence inventory and interaction contract are in
+[the Sessions plan](../plans/week2_observ/observatory/sessions.md).
+
+### 8. Cohort means needed their variability and exact sessions
+
+The retained J1 means looked decisive until standard deviation and individual
+samples were kept beside them. Minimal used more calls and cost on this
+journey, while raw and full overlapped within their observed variation.
+
+- Every aggregate now opens the sample sessions that produced it.
+- Registered configuration states what the installed runner can vary.
+  Unsupported dimensions remain observable without pretending to execute.
+- Representative paths explain where behavior differed, while the repeated
+  cohort establishes whether that example is typical.
+
+The evidence and execution boundaries are in
+[the Experiments plan](../plans/week2_observ/observatory/experiments.md).
+
+### 9. Display policy could not be retention policy
+
+Result modes deliberately change what the model sees, while REPL, TUI, and
+Observatory views summarize for different readers. Treating either choice as a
+logging boundary erased the source needed to explain later behaviour.
+
+- Model request, provider response, and normalized content are now distinct.
+- Tool results retain original MCP text, rendering, truncation, and model input.
+- MUD evidence retains bytes, decoded text, normalized parser input, typed
+  observations, and projected state as separate linked stages.
+- An aggregate that kept only matching rows destroyed the explanation around
+  them. Aggregate focus now retains the enclosing iteration and causal chain.
+- Older recordings name missing stages instead of implying complete evidence.
 
 ## Technical Conclusions
 
-- Filled at week's end.
+- The gateway hypothesis held. Owning the wire made raw evidence, typed
+  observations, live delivery, and replay part of one sequence.
+- Deterministic parsing worked for most recorded lines, while retaining the
+  residual made its limits measurable.
+- The tool-result cost hypothesis did not hold in its simple form. Payload size
+  mattered, but the behaviour caused by that payload changed total journey cost
+  more.
+- More logs alone did not solve observability. Useful explanation required
+  stable identity, causal and temporal correlation, explicit provenance, and
+  drill-down from summaries to source evidence.
+- Belief and truth cannot be collapsed into one result. Agent claims, game
+  predicates, parser confidence, cumulative knowledge, and observer truth need
+  distinct labels and relationships.
+- The main uncertainty still open is whether repeated experiment runs can stay
+  comparable while exposing enough configuration to explain their differences.
 
 ## Key Takeaway
 
-- Filled at week's end.
-
-## Observations, gateway EOF
-
-- The gateway EOF fix closed the loop on the day's theme: a stale flag is
-  not a status. The transport now treats remote EOF as a fact that marks
-  the connection dead, a session reconnects once and only before a command
-  is sent, and a command whose send already began is never replayed. The
-  queued output from a dead connection is drained and recorded first, so
-  even a broken link leaves honest evidence.
-
+Observability became useful when every summary could lead back through the
+agent, model, tool, gateway, Telnet, and MUD boundaries to the retained evidence
+that supports it.
