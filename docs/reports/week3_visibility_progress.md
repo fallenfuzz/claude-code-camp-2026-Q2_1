@@ -103,9 +103,9 @@ re-tread rate, or travel-by-title is well defined until identity is.
 
 ## F1 wiring landed, with one part blocked
 
-- The map now joins during play, not only after a run ends. The review
-  found the earlier wiring correct and useless: every room entered in a
-  run belongs to no joined room until the run ends, so the agent always
+- The map now joins during play, not only after a run ends. The earlier
+  wiring was correct and useless: every room entered in a run belongs to
+  no joined room until the run ends, so the agent always
   stood somewhere the joined map did not contain, and travel to a room
   known from a previous run returned unreachable every time.
 - Two store defects found by the same review and now tested: withdrawing

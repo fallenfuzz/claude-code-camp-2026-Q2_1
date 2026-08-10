@@ -1,9 +1,8 @@
 # Week 3 · What the last batch actually did
 
-Found by reviewing the unreviewed work against one recorded run
-(`.boukensha/benchmarks/newbie_zone/attempts/20260807T162651Z`, 19 model
-calls, 281 game commands) and against the game's own help file. Four
-defects were found by hand first. Nine more were found by review.
+Read out of one recorded run (19 model calls, 281 game commands) and
+checked against the game's own help file. Thirteen defects, and they are
+not thirteen problems.
 
 ## They are one chain, not a list
 
