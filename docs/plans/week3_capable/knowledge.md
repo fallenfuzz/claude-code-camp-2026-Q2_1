@@ -242,8 +242,8 @@ with provenance instead of only place facts. When built, it shows the
 store as inspectable state: facts with confidence, age, and evidence links
 back to sessions, the authored rule set with versions, and the change
 feed. The generic subject and predicate rendering means new fact layers
-appear without UI changes. If the overnight capabilities land early, this
-is the first stretch item after the learning curve.
+appear without UI changes. If the capabilities land early, this is the
+first stretch item after the learning curve.
 
 ## Backlog experiments
 

@@ -46,7 +46,7 @@ CLAUDE.md
 # Built Ruby gems (regenerate with gem build)
 *.gem
 
-# Internal working files (rework report + monitor feedback), not deliverables
+# Working notes, not deliverables
 reworks_report.md
 feedback_rework.md
 

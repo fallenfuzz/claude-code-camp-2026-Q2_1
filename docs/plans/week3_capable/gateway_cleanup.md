@@ -18,7 +18,7 @@ the observer writes where it should not.
 | `settings.record_room_numbers` | Parsed, no reader |
 | `KnowledgeStore.retract_layer` | Definition only, repo wide |
 | `derived` in `knowledge_models` layers | Only referenced by the tests being deleted |
-| scratchpad probes | A dozen one-off scripts, none reusable |
+| one-off probes | A dozen throwaway scripts, none reusable |
 
 Deleting the three test files takes the suite from 376 to 356. That is
 the expected number afterwards, not a regression.

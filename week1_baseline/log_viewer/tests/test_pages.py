@@ -587,7 +587,7 @@ class TestACompactionSaysWhatItDid(unittest.TestCase):
 
 
 class TestTheControlsAreVisibleRatherThanLearned(unittest.TestCase):
-    """Ibnou's question was the right one: why does a browser need those keys.
+    """The right question was why a browser needs those keys at all.
 
     It mostly did not. `j`/`k` duplicated scrolling and `o`/`c` duplicated clicking a
     disclosure triangle, and the browser does both without being taught. Only two things

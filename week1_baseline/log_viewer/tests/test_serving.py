@@ -201,7 +201,7 @@ class TestTheCommandSurface(unittest.TestCase):
 
 
 class TestABusyPortIsNotATraceback(unittest.TestCase):
-    """Reported by Ibnou running it: `OSError: [Errno 48] Address already in use`.
+    """Running a second copy raised `OSError: [Errno 48] Address already in use`.
 
     Straight out of the socket layer, which tells a reader about sockets rather than
     about their viewer. Two copies of a log reader open at once is an ordinary thing to

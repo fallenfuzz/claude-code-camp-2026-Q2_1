@@ -1,8 +1,7 @@
 """Every field the log carries is SURFACED somewhere, not merely present.
 
-Ibnou's rule: "we should be able to view the data in different angles... What we want to
-prevent is having the data and not be able to see what we are looking into it if that
-info is present."
+The rule: the data should be readable from different angles. What has to be prevented
+is holding the data and still being unable to see what is in it.
 
 The raw lens prints whole records, so technically nothing is invisible. That is not the
 same as surfaced. A reader chasing why a turn died on `max_tokens` should not have to
