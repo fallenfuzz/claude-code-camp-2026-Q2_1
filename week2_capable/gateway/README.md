@@ -120,6 +120,19 @@ the `capabilities.knowledge` settings flag.
 - `state_block.py` renders one compact summary from the store and the
   session's retained observations: the current place, each exit marked
   known or unexplored, live vitals numbers, and map coverage.
+- What is standing in the room comes from the game's last description of
+  it, never from what was seen there before. A remembered creature may
+  have been killed or wandered off, and in the dark the game reports
+  nothing at all.
+- Everything read from the store carries how long ago it was recorded.
+  Readings under a minute old carry no age. Live health and movement are
+  their own line and carry none, so the age on the character sheet never
+  reads as if it dated them.
+- Notes are carried only from the run that wrote them. An earlier run's
+  note competes with the live state and with the objective the agent has
+  now, and it stays available through `recall` instead.
+- Hunger and thirst ride the character sheet as conditions and are not
+  repeated as advice, which named no action the agent could take.
 - The `recall_state` tool serves it while the flag is on, costing no game
   command. The agent also fetches it before every model call and injects
   it as a volatile final message that never persists in history.
@@ -318,8 +331,23 @@ boukensha-gateway-api
 - Tool failures distinguish a lost established connection from a failed
   pre-command reconnect.
 - Login follows name, password, MOTD, menu choice, then the vitals prompt.
+- A name the game does not recognise is refused at once, naming the reason,
+  instead of waiting for a password prompt that is never sent.
+- A session opened with `creates` answers the game's questions for an unknown
+  name instead: confirmation, the password twice, sex, and class. Sex and
+  class are fixed in the gateway, because a character made with different
+  answers is a different subject and an experiment comparing two of them
+  would be comparing the characters. A made name is letters only, which the
+  gateway checks before the game refuses it.
+- A made character can be destroyed again, which is cleanup and not
+  isolation. Isolation comes from every attempt making a name of its own,
+  which survives a crash that skips the cleanup. Only a character this
+  session made can be destroyed, so no configured player is reachable.
+- Deletion is confirmed by asking the game whether it still knows the name.
+  The game drops the connection as it deletes, so there is often nothing to
+  read, and silence would otherwise read as success.
 - The password is replaced with a length-preserving redacted event before
-  anything is persisted.
+  anything is persisted, on the made passwords as well as the login one.
 - SQLite runs in WAL mode with one journal writer.
 - A runtime journal has one live writer lock. A second writer is refused, while
   a replacement gateway can reopen it after the prior process exits.

@@ -26,6 +26,14 @@ from mud_gateway.session import (
 from mud_gateway.wire import ConnectionLost, Direction, WireEvent
 
 GREETING = b"\r\nBy what name do you wish to be known? "
+CONFIRM = b"\r\nName: newone\r\nDid I get that right, Newone (Y/N)? "
+NEW_PASSWORD = b"\r\nNew character.\r\nGive me a password for Newone: "
+RETYPE = b"\r\nPlease retype password: "
+SEX = b"\r\nWhat is your sex (M/F)? "
+CLASS = (
+    b"\r\nSelect a class:\r\n  [C]leric\r\n  [T]hief\r\n"
+    b"  [W]arrior\r\n  [M]agic-user\r\n\r\nClass: "
+)
 PASSWORD = b"\r\nPassword: "
 MOTD = b"\r\n*** PRESS RETURN: "
 MENU = b"\r\nMake your choice: "
@@ -441,3 +449,148 @@ class TestTheReplyItself:
         line = str(reply)
         assert line.startswith("<Reply 'look' bytes=400 complete=False unsolicited=1")
         assert len(line) < 140
+
+
+class TestMakingACharacter:
+    """The game asks six questions for a name it has never seen. Answering
+    them is what lets an experiment run on a character nothing has touched,
+    instead of on one carrying settings and loot from the run before."""
+
+    async def test_a_new_name_is_created_and_enters_the_game(self, journal):
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, CONFIRM, NEW_PASSWORD, RETYPE, SEX, CLASS,
+             MOTD, MENU, PROMPT_BYTES]
+        )
+
+        await session.open()
+
+        assert session.logged_in
+        assert [line for line, _ in session.transport.sent] == [
+            "Newone", "Y", "password", "password", "M", "W", "", ENTER_GAME,
+        ]
+
+    async def test_both_passwords_are_sent_marked_secret(self, journal):
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, CONFIRM, NEW_PASSWORD, RETYPE, SEX, CLASS,
+             MOTD, MENU, PROMPT_BYTES]
+        )
+
+        await session.open()
+
+        secrets = [line for line, secret in session.transport.sent if secret]
+        assert secrets == ["password", "password"]
+
+    async def test_the_made_character_is_journalled_with_its_choices(
+        self, journal,
+    ):
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, CONFIRM, NEW_PASSWORD, RETYPE, SEX, CLASS,
+             MOTD, MENU, PROMPT_BYTES]
+        )
+
+        await session.open()
+
+        made = [e for e in journal.since(session.id)
+                if e.kind == "character_made"]
+        assert [e.payload["class"] for e in made] == ["W"]
+
+    async def test_an_unknown_name_fails_at_once_when_not_creating(
+        self, journal,
+    ):
+        # Without this the read waits for a password prompt that is never
+        # coming, and a name that does not exist reads as a dead connection.
+        session = make(journal, [GREETING, CONFIRM])
+
+        with pytest.raises(LoginFailed):
+            await session.open()
+
+        reasons = [e.payload.get("reason") for e in journal.since(session.id)
+                   if e.kind == "login_failed"]
+        assert "no such character" in reasons
+
+    async def test_a_name_the_game_would_refuse_never_reaches_it(
+        self, journal,
+    ):
+        session = Session(journal, name="new-one_2", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport([GREETING, CONFIRM])
+
+        with pytest.raises(LoginFailed):
+            await session.open()
+
+        assert "Y" not in [line for line, _ in session.transport.sent]
+
+    async def test_a_name_already_taken_is_fatal_when_creating(self, journal):
+        # Entering it would hand back whatever the last run left on that
+        # character, which is the contamination a made character avoids,
+        # and it would arrive with no sign that anything was wrong.
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, PASSWORD, MOTD, MENU, PROMPT_BYTES]
+        )
+
+        with pytest.raises(LoginFailed):
+            await session.open()
+
+        assert not session.logged_in
+        assert "password" not in [line for line, _ in session.transport.sent]
+        reasons = [e.payload.get("reason") for e in journal.since(session.id)
+                   if e.kind == "login_failed"]
+        assert "name already taken" in reasons
+
+    async def test_a_character_we_did_not_make_is_never_destroyed(self, journal):
+        # Cleanup that could reach a configured player is one bad generated
+        # name away from deleting somebody's character.
+        session = make(journal, [])
+
+        with pytest.raises(LoginFailed):
+            await session.destroy()
+
+        assert session.transport.sent == []
+
+    async def test_a_made_character_reconnects_as_an_ordinary_login(
+        self, journal,
+    ):
+        # After creation the game knows the name, and a dropped connection
+        # reopens through the same entry sequence. Treating our own
+        # character as a collision would make every reconnect fatal.
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, CONFIRM, NEW_PASSWORD, RETYPE, SEX, CLASS,
+             MOTD, MENU, PROMPT_BYTES,
+             GREETING, PASSWORD, MOTD, MENU, PROMPT_BYTES]
+        )
+        await session.open()
+        session.transport.sent.clear()
+
+        await session.open()
+
+        assert session.logged_in
+        assert [line for line, _ in session.transport.sent] == [
+            "Newone", "password", "", ENTER_GAME,
+        ]
+
+    async def test_a_collision_leaves_the_character_undeletable(self, journal):
+        # The request to make one is still set after the failure, and the
+        # character belongs to whoever made it. Deleting it would destroy
+        # somebody else's character on the strength of our intent.
+        session = Session(journal, name="Newone", password="password",
+                          creates=True)
+        session.transport = ScriptedTransport(
+            [GREETING, PASSWORD, MOTD, MENU, PROMPT_BYTES]
+        )
+        with pytest.raises(LoginFailed):
+            await session.open()
+
+        with pytest.raises(LoginFailed) as refused:
+            await session.destroy()
+
+        assert "not made here" in str(refused.value)

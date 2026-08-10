@@ -38,6 +38,40 @@ PASSWORD_PROMPT = re.compile(rb"password", re.I)
 MENU_PROMPT = re.compile(rb"make your choice", re.I)
 WRONG_PASSWORD = re.compile(rb"wrong password", re.I)
 
+#: After the name the game either asks for a password, meaning the character
+#: exists, or offers the name back for confirmation, meaning it does not.
+#: Waiting only for the password prompt makes an unknown name hang until the
+#: read times out, which reads as a broken connection rather than a typo.
+AFTER_NAME = re.compile(rb"did i get that right|password", re.I)
+
+#: Making a character, in the order the game asks. Every answer after the
+#: name is a choice, and a character made with different answers is a
+#: different subject, so none of them is left to the caller.
+CONFIRM_NAME = re.compile(rb"did i get that right", re.I)
+RETYPE_PASSWORD = re.compile(rb"retype password", re.I)
+SEX_PROMPT = re.compile(rb"what is your sex", re.I)
+CLASS_PROMPT = re.compile(rb"^\s*class:", re.I | re.M)
+
+#: The character every made character is. Warrior because the recorded runs
+#: were fought and survived rather than cast, and one letter each because
+#: that is what the menus take.
+BIRTH_SEX = "M"
+BIRTH_CLASS = "W"
+
+#: Removing a made character, from the menu. The confirmation takes the word
+#: in full: anything shorter is answered with "Character not deleted." and
+#: the menu again, so a "Y" here reads as success and deletes nothing.
+DELETE_CHOICE = "5"
+VERIFY_PASSWORD = re.compile(rb"password for verification", re.I)
+CONFIRM_DELETE = re.compile(rb"type \"yes\" to confirm", re.I)
+DELETE_WORD = "yes"
+DELETED = re.compile(rb"character (?:deleted|not deleted)", re.I)
+
+#: What the game accepts as a name. Anything else is refused at the name
+#: prompt, and the refusal arrives as a re-prompt rather than an error, so a
+#: bad name would look like a hung connection instead of a rejected one.
+MADE_NAME = re.compile(r"^[A-Za-z]+$")
+
 #: Commands that can put the character somewhere else. The six directions
 #: move it, fleeing moves it, and recall, entering and following all end
 #: somewhere new. Anything else leaves the room it was in.
@@ -108,10 +142,17 @@ class Session:
                  session_id: str | None = None,
                  issuer: str = "gateway",
                  observes: bool = True,
+                 creates: bool = False,
                  knowledge: KnowledgeProjector | None = None) -> None:
         self.id = session_id or f"{name}-{uuid.uuid4().hex[:8]}"
         self.name = name
         self._password = password
+        # Asked for, and achieved, are different facts. The first says this
+        # login must make the character. The second says this session made
+        # it, which is what decides whether reconnecting is a collision and
+        # whether the character is ours to delete.
+        self._creates = creates
+        self._created_here = False
         self.journal = journal
         self.transport = Transport(host=host, port=port, timeout=timeout,
                                   on_wire=self._journal_wire)
@@ -156,10 +197,36 @@ class Session:
         # client-detection notice and then pauses while it probes.
         await self.transport.read_until(NAME_PROMPT, quiet=None, deadline=self.transport.timeout)
         await self.transport.send(self.name)
-        await self.transport.read_until(PASSWORD_PROMPT, quiet=None)
-        await self.transport.send(self._password, secret=True)
-
-        seen = await self.transport.read_until(PROMPT, quiet=1.5)
+        answered = await self.transport.read_until(AFTER_NAME, quiet=None)
+        if CONFIRM_NAME.search(answered):
+            if not self._creates:
+                self.journal.append(self.id, "login_failed",
+                                    {"character": self.name,
+                                     "reason": "no such character"})
+                raise LoginFailed(f"no character named {self.name!r}")
+            if not MADE_NAME.match(self.name):
+                self.journal.append(self.id, "login_failed",
+                                    {"character": self.name,
+                                     "reason": "name not accepted"})
+                raise LoginFailed(
+                    f"a made name is letters only, got {self.name!r}"
+                )
+            seen = await self._make_character()
+        elif self._creates and not self._created_here:
+            # The game knows this name and this session did not make it, so
+            # entering it would hand back a character carrying whatever the
+            # last run left on it. That is the contamination a made
+            # character exists to avoid, and it would arrive silently, so
+            # the collision is fatal instead. A character we did make is a
+            # different case: the game knows it because we are its author,
+            # and reconnecting to it is an ordinary login.
+            self.journal.append(self.id, "login_failed",
+                                {"character": self.name,
+                                 "reason": "name already taken"})
+            raise LoginFailed(f"character {self.name!r} already exists")
+        else:
+            await self.transport.send(self._password, secret=True)
+            seen = await self.transport.read_until(PROMPT, quiet=1.5)
         for _ in range(ENTRY_STEPS):
             if WRONG_PASSWORD.search(seen):
                 self.journal.append(self.id, "login_failed", {"character": self.name})
@@ -173,6 +240,105 @@ class Session:
         self.journal.append(self.id, "login_failed",
                             {"character": self.name, "reason": "no prompt"})
         raise LoginFailed(f"no prompt after login as {self.name!r}")
+
+    async def _make_character(self) -> bytes:
+        """Answer the game's questions for a name it has never seen.
+
+        Every answer is fixed here rather than passed in. A character made
+        with a different class is a different subject, and an experiment
+        that compares one against another is comparing the characters.
+        """
+        await self.transport.send("Y")
+        await self.transport.read_until(PASSWORD_PROMPT, quiet=None)
+        await self.transport.send(self._password, secret=True)
+        await self.transport.read_until(RETYPE_PASSWORD, quiet=None)
+        await self.transport.send(self._password, secret=True)
+        await self.transport.read_until(SEX_PROMPT, quiet=None)
+        await self.transport.send(BIRTH_SEX)
+        await self.transport.read_until(CLASS_PROMPT, quiet=None)
+        await self.transport.send(BIRTH_CLASS)
+        self._created_here = True
+        self.journal.append(self.id, "character_made",
+                            {"character": self.name,
+                             "sex": BIRTH_SEX, "class": BIRTH_CLASS})
+        return await self.transport.read_until(PROMPT, quiet=1.5)
+
+    async def destroy(self) -> bool:
+        """Delete this character, from a connection of its own.
+
+        Only a character this session made can be destroyed. A configured
+        player is somebody's, and a cleanup step that could reach one would
+        be one bad name away from deleting it.
+
+        Cleanup, not isolation. Isolation comes from every attempt making a
+        name of its own, which survives a crash that skips this entirely.
+        """
+        # Asking to make a character is not making one. A login that failed
+        # because the name was taken leaves the request set and the
+        # character somebody else's, so the request cannot be what
+        # authorises deleting it.
+        if not self._created_here:
+            raise LoginFailed(
+                f"{self.name!r} was not made here and is not ours to delete"
+            )
+        await self.close()
+        # A cleanup step runs after whatever went wrong, including a run
+        # that already removed this character, so a name the game does not
+        # know is the wanted state and not a failure.
+        if not await self._known():
+            self.journal.append(self.id, "character_destroyed",
+                                {"character": self.name, "deleted": True,
+                                 "reason": "not present"})
+            return True
+        await self.transport.connect()
+        await self.transport.read_until(NAME_PROMPT, quiet=None,
+                                        deadline=self.transport.timeout)
+        await self.transport.send(self.name)
+        await self.transport.read_until(PASSWORD_PROMPT, quiet=None)
+        await self.transport.send(self._password, secret=True)
+        # The MOTD waits on a keypress before the menu appears. Sending the
+        # menu choice into it spends the choice on the keypress and leaves
+        # the menu untouched, which is the same trap the entry sequence
+        # documents at the top of this module.
+        seen = await self.transport.read_until(MENU_PROMPT, quiet=1.5)
+        for _ in range(ENTRY_STEPS):
+            if MENU_PROMPT.search(seen):
+                break
+            await self.transport.send("")
+            seen += await self.transport.read_until(MENU_PROMPT, quiet=1.2)
+        else:
+            await self.transport.close()
+            raise LoginFailed(f"no menu reached for {self.name!r}")
+        await self.transport.send(DELETE_CHOICE)
+        await self.transport.read_until(VERIFY_PASSWORD, quiet=None)
+        await self.transport.send(self._password, secret=True)
+        await self.transport.read_until(CONFIRM_DELETE, quiet=None)
+        await self.transport.send(DELETE_WORD)
+        # The game drops the connection as it deletes, so there is often no
+        # sentence to read. Silence is ambiguous, and a refusal looks the
+        # same from here, so the answer comes from asking the game whether
+        # the name is still one it knows.
+        try:
+            await self.transport.read_until(DELETED, quiet=1.5)
+        except Exception:
+            pass
+        await self.transport.close()
+        gone = not await self._known()
+        self.journal.append(self.id, "character_destroyed",
+                            {"character": self.name, "deleted": gone})
+        return gone
+
+    async def _known(self) -> bool:
+        """Whether the game still recognises this name."""
+        await self.transport.connect()
+        try:
+            await self.transport.read_until(NAME_PROMPT, quiet=None,
+                                            deadline=self.transport.timeout)
+            await self.transport.send(self.name)
+            answered = await self.transport.read_until(AFTER_NAME, quiet=None)
+            return not CONFIRM_NAME.search(answered)
+        finally:
+            await self.transport.close()
 
     async def close(self) -> None:
         if self._logged_in and not self.transport.closed:

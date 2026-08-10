@@ -42,6 +42,10 @@ class PlayerProfile:
     id: str
     character: str
     password_env: str
+    #: Whether this login must make the character rather than enter one. An
+    #: experiment gives every attempt a name the game has never seen, so no
+    #: switch, threshold, item or skill can travel from the run before.
+    creates: bool = False
 
 
 @dataclass(frozen=True)
@@ -403,9 +407,15 @@ def _players(value: Any) -> dict[str, PlayerProfile]:
             )
         _known(
             raw_profile,
-            {"character", "password_env"},
+            {"character", "password_env", "creates"},
             f"gateway.players.{profile_id}",
         )
+        creates = raw_profile.get("creates", False)
+        if not isinstance(creates, bool):
+            raise GatewaySettingsError(
+                f"settings.yaml: 'gateway.players.{profile_id}.creates' "
+                f"must be true or false"
+            )
         profiles[profile_id] = PlayerProfile(
             id=profile_id,
             character=_string(raw_profile.get("character"), profile_id),
@@ -414,6 +424,7 @@ def _players(value: Any) -> dict[str, PlayerProfile]:
                 "MUD_PASSWORD",
                 f"gateway.players.{profile_id}.password_env",
             ),
+            creates=creates,
         )
     return profiles
 

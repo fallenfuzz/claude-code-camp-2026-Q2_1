@@ -525,6 +525,7 @@ async def serve(
                 journal,
                 name=profile.character,
                 password=password,
+                creates=profile.creates,
                 host=settings.host,
                 port=settings.port,
                 session_id=settings.gateway_session_id,
@@ -589,6 +590,7 @@ async def serve(
                         settings=settings.capability_settings.get(
                             "knowledge", {}
                         ),
+                        session_id=live.id,
                     )
 
                 state_reader = read_state
