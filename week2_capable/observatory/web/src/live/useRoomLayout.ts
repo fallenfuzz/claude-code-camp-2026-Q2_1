@@ -4,7 +4,6 @@ import {
 } from "react";
 
 import {
-  emptyRoomLayout,
   loadRoomLayout,
   type RoomLayout,
 } from "./roomLayout";
@@ -12,11 +11,11 @@ import {
 /**
  * The world's saved squares, fetched once for the life of the page.
  *
- * Until it arrives the map draws itself the way it always did, so a slow
- * or missing file costs a reflow rather than an empty screen.
+ * Until it arrives the map waits. Falling back to a computed layout would
+ * briefly move every room and contradict the fixed world map.
  */
-export function useRoomLayout(): RoomLayout {
-  const [world, setWorld] = useState<RoomLayout>(emptyRoomLayout);
+export function useRoomLayout(): RoomLayout | null {
+  const [world, setWorld] = useState<RoomLayout | null>(null);
   useEffect(() => {
     let watching = true;
     loadRoomLayout().then((loaded) => {

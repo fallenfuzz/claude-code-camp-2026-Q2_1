@@ -39,6 +39,10 @@ export type MapConnection = {
 
 export type MapGraph = {
   rooms: MapRoom[];
+  /** The floor these squares belong to, when they came from the world. */
+  floor: { zone: number; level: number } | null;
+  /** The grid square the drawing starts from. */
+  origin: MapPoint;
   connections: MapConnection[];
   currentRoomId: string | null;
   x: number;
@@ -180,6 +184,67 @@ function onFloor(node: WorldNode, world: RoomLayout, floor: string): boolean {
   return square !== null && `${square.zone}:${square.level}` === floor;
 }
 
+
+/**
+ * Which links have to arc: the ones crossing another link, and the ones
+ * running over a room. Ported from crossing() in the mockup.
+ *
+ * Neither is a reason to hide a link, but two lines meeting at a plain X
+ * read as a junction that is not there, so the one running down the page
+ * hops over.
+ */
+function crossingLinks(
+  lines: Array<{ key: string; a: MapPoint; b: MapPoint }>,
+  filled: MapPoint[],
+): Set<string> {
+  const hop = new Set<string>();
+  for (const line of lines) {
+    for (const point of filled) {
+      if (
+        point.x === line.a.x && point.y === line.a.y
+        || point.x === line.b.x && point.y === line.b.y
+      ) {
+        continue;
+      }
+      const collinear = (
+        (line.b.x - line.a.x) * (point.y - line.a.y)
+        - (line.b.y - line.a.y) * (point.x - line.a.x)
+      ) === 0;
+      const between = (
+        point.x >= Math.min(line.a.x, line.b.x)
+        && point.x <= Math.max(line.a.x, line.b.x)
+        && point.y >= Math.min(line.a.y, line.b.y)
+        && point.y <= Math.max(line.a.y, line.b.y)
+      );
+      if (collinear && between) {
+        hop.add(line.key);
+        break;
+      }
+    }
+  }
+  for (let i = 0; i < lines.length; i += 1) {
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const first = lines[i];
+      const second = lines[j];
+      if (first === undefined || second === undefined) continue;
+      const firstFlat = first.a.y === first.b.y;
+      const secondFlat = second.a.y === second.b.y;
+      if (firstFlat === secondFlat) continue;
+      const across = firstFlat ? first : second;
+      const down = firstFlat ? second : first;
+      if (
+        Math.min(across.a.x, across.b.x) < down.a.x
+        && down.a.x < Math.max(across.a.x, across.b.x)
+        && Math.min(down.a.y, down.b.y) < across.a.y
+        && across.a.y < Math.max(down.a.y, down.b.y)
+      ) {
+        hop.add(down.key);
+      }
+    }
+  }
+  return hop;
+}
+
 function buildMapGraphWithLayout(
   nodes: WorldNode[],
   edges: WorldEdge[],
@@ -188,12 +253,13 @@ function buildMapGraphWithLayout(
 ): MapGraph {
   const canonical = canonicalizeAtlasRooms(nodes, edges);
   const everything = [...canonical.nodes].sort(compareNodes);
-  // The world's squares are used only when it has one for every room the
-  // map knows. A room without one cannot be placed beside rooms that have
-  // one, so a partial answer would be worse than the old walk.
-  const allPlaced = everything.length > 0
-    && everything.every((node) => squareOf(world, node) !== null);
-  const floor = allPlaced ? currentFloor(everything, world) : null;
+  // A room with no square is rendered beside the fixed floor as an off-map
+  // destination. It must not make every correctly placed room fall back to
+  // the old per-session layout.
+  const candidateFloor = currentFloor(everything, world);
+  const hasRoomsOnCandidateFloor = candidateFloor !== null
+    && everything.some((node) => onFloor(node, world, candidateFloor));
+  const floor = hasRoomsOnCandidateFloor ? candidateFloor : null;
   const orderedNodes = floor === null
     ? everything
     : everything.filter((node) => onFloor(node, world, floor));
@@ -201,6 +267,8 @@ function buildMapGraphWithLayout(
     return {
       rooms: [],
       connections: [],
+      floor: null,
+      origin: { x: 0, y: 0 },
       currentRoomId: null,
       x: 0,
       y: 0,
@@ -230,6 +298,16 @@ function buildMapGraphWithLayout(
     ]),
   );
   const byId = new Map(orderedNodes.map((node) => [node.id, node]));
+  const crossed = crossingLinks(
+    evidence.flatMap((connection) => {
+      const from = points.get(connection.source);
+      const to = points.get(connection.target);
+      return from === undefined || to === undefined
+        ? []
+        : [{ key: connection.id, a: from, b: to }];
+    }),
+    [...points.values()],
+  );
   const connections = evidence.map((connection) => {
     const source = points.get(connection.source);
     const target = points.get(connection.target);
@@ -281,12 +359,17 @@ function buildMapGraphWithLayout(
       vertical,
       bent,
       oneWay: directions.size === 1,
-      hop: lies,
+      hop: lies || crossed.has(connection.id),
       walked: connection.edges.some(({ traversals }) => traversals > 0),
     };
   });
 
+  const [zone, level] = (floor ?? "").split(":");
   return {
+    floor: floor === null
+      ? null
+      : { zone: Number(zone), level: Number(level) },
+    origin: { x: minimumX, y: minimumY },
     rooms: orderedNodes.map((node) => ({
       node,
       point: scaled.get(node.id) ?? { x: 0, y: 0 },

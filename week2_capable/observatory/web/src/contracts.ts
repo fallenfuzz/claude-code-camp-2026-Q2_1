@@ -482,6 +482,31 @@ export type WorldProjection = {
   unknown_positions: number;
 };
 
+export type AtlasNode = {
+  id: string;
+  vnum: number;
+  title: string;
+  zone: number;
+  sector: string;
+  exits: Record<string, number>;
+};
+
+export type AtlasProjection = {
+  available: boolean;
+  source_state: "available" | "unavailable";
+  source_label: string;
+  level: "overview" | "zone";
+  selected_zone: number | null;
+  room_count: number;
+  edge_count: number;
+  zone_count: number;
+  duplicate_title_count: number;
+  load_ms: number;
+  nodes: AtlasNode[];
+  memory_bytes: number;
+  detail: string;
+};
+
 export type RoomEconomics = {
   node_id: string;
   response_count: number;

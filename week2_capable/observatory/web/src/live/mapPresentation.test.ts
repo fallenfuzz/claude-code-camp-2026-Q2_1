@@ -78,6 +78,8 @@ function lineGraph(roomCount: number): MapGraph {
   return {
     rooms,
     connections,
+    floor: null,
+    origin: { x: 0, y: 0 },
     currentRoomId: "room-0",
     x: -92,
     y: -92,

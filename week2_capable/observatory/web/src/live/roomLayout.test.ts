@@ -106,13 +106,11 @@ describe("the saved layout", () => {
     expect(at(after, "b")).toEqual(at(before, "b"));
   });
 
-  it("keeps the old walk when a room on show has no square", () => {
+  it("keeps fixed rooms fixed when another room has no square", () => {
     const nodes = [room("a", 18601), room("b", 99999)];
     const graph = buildMapGraph(nodes, [link("a", "b", "east")], corridor);
-    // 99999 is not in the file, so neither room may use it: mixing the two
-    // would put rooms from different coordinate systems side by side.
-    expect(graph.rooms).toHaveLength(2);
-    expect(graph.rooms.map(({ point }) => point.y)).toEqual([0, 0]);
+    expect(graph.rooms.map(({ node }) => node.id)).toEqual(["vnum:18601"]);
+    expect(graph.rooms[0]?.point).toEqual({ x: 0, y: mapRowGap });
   });
 
   it("draws one floor, the one the agent is standing on", () => {
@@ -133,12 +131,10 @@ describe("the saved layout", () => {
     expect(graph.currentRoomId).toBe(graph.rooms[0]?.node.id);
   });
 
-  it("falls back to the walk when a room has no square at all", () => {
+  it("keeps the fixed floor when an observed room has no atlas identity", () => {
     const nodes = [room("a", 18601), room("b", null)];
     const graph = buildMapGraph(nodes, [link("a", "b", "east")], corridor);
-    // A room with no atlas number cannot be placed from the file, and
-    // placing only its neighbour would mix two ways of deciding a square.
-    expect(graph.rooms).toHaveLength(2);
+    expect(graph.rooms.map(({ node }) => node.id)).toEqual(["vnum:18601"]);
   });
 
   it("reads the arcs the saved squares make untrue", () => {

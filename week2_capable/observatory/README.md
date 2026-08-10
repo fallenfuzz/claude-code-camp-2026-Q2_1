@@ -153,7 +153,7 @@ planning, so a finished goal does not read like a stalled one.
 The active-combat panel follows the initial Live mock's left-side spotlight,
 streams retained MUD combat lines in sequence order, and follows the newest
 line as the fight grows. Unsolicited combat frames update the stream and prompt
-vitals without a `score` probe. It participates in Focus camera occlusion, so
+vitals without a `score` probe. The camera counts the panel as an occluder, so
 the panel does not hide the current room.
 The objective strip always renders: structured current metadata wins, retained
 compatibility text remains visible for older sessions, and an unset objective
@@ -262,18 +262,17 @@ question and one immutable definition in context.
 
 ### Learned-world map
 
-The map renders the agent's retained room, traversal, frontier, visit, mob,
-object, and thought evidence inside the final Live map pane. Grow, Focus, and
-Lantern change presentation without changing learned coordinates. Follow,
-Manual, Fit, drag, and zoom operate against the map viewport while the thought
-dock and legend remain overlays. Reflow compares evidence-order and topology
-layouts, swaps rooms and relocates them into free lattice cells to minimize
-connection crossings, keeps compass direction as a soft constraint, and fits
-the result without changing evidence. The soft constraint keeps non-Euclidean
-CircleMUD mazes readable instead of forcing impossible compass geometry.
-Follow holds the camera while the current room stays inside its central dead
-zone, then catches up without overshoot. An unconnected position jump snaps
-instead of imitating observed traversal.
+The map draws the agent's retained room, traversal, visit, mob, object, and
+thought evidence on the world's own squares.
+
+- Squares come from `web/public/world-layout.json`, worked out once from the
+  world files, so a room is in the same place in every view and every render.
+- One floor is shown at a time, the one the agent stands on. Ways up and down
+  leave the floor as circles naming where they go.
+- Grow and Lantern change presentation. Ghosts draws the floor's unentered
+  rooms and is on by default.
+- Follow, Manual, and Fit drive the camera, with drag and zoom on the viewport.
+  Dragging takes the camera to Manual.
 
 ### Room inspector
 
@@ -291,7 +290,7 @@ npm test
 npm run build
 ```
 
-The frontend suite contains 182 tests across 26 files. `npm run build` runs
+The frontend suite contains 170 tests across 30 files. `npm run build` runs
 strict TypeScript checking with `tsc --noEmit` before producing the Vite
 production bundle.
 

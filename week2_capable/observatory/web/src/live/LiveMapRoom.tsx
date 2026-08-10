@@ -19,6 +19,7 @@ type Props = {
   node: WorldNode;
   point: MapPoint;
   current: boolean;
+  arriving?: boolean;
   selected: boolean;
   combat: boolean;
   beacon: boolean;
@@ -30,6 +31,7 @@ export const LiveMapRoom = memo(function LiveMapRoom({
   node,
   point,
   current,
+  arriving = false,
   selected,
   combat,
   beacon,
@@ -78,6 +80,7 @@ export const LiveMapRoom = memo(function LiveMapRoom({
         "live-map-room",
         sectorClass(node.atlas?.sector),
         node.state === "candidate" ? "is-candidate" : "",
+        arriving ? "is-arriving" : "",
         stateClass,
         selected ? "is-selected" : "",
       ].filter(Boolean).join(" ")}
@@ -263,6 +266,7 @@ function sameRoomRender(previous: Props, next: Props): boolean {
     && previous.point.x === next.point.x
     && previous.point.y === next.point.y
     && previous.current === next.current
+    && previous.arriving === next.arriving
     && previous.selected === next.selected
     && previous.combat === next.combat
     && previous.beacon === next.beacon

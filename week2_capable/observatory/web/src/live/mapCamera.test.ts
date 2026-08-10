@@ -547,6 +547,8 @@ function fixtureGraph(): MapGraph {
       { node: room("hidden", "observed"), point: { x: 322, y: 0 } },
     ],
     connections: [],
+    floor: null,
+    origin: { x: 0, y: 0 },
     currentRoomId: "current",
     x: -92,
     y: -92,

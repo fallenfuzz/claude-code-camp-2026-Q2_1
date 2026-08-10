@@ -7,7 +7,17 @@ import type {
   SessionEvidenceRecord,
   SessionInvestigation,
 } from "../contracts";
+import { primeRoomLayout } from "../live/roomLayout.fixture";
 import { SessionsWorkspace } from "./SessionWorkspace";
+
+/** Both fixture rooms on one floor, the gate north into the room inside. */
+const worldLayout = {
+  rooms: {
+    4001: [40, 0, 1, 1] as [number, number, number, number],
+    4002: [40, 0, 1, 0] as [number, number, number, number],
+  },
+  arcs: [],
+};
 
 function record(
   overrides: Partial<SessionEvidenceRecord>,
@@ -363,6 +373,15 @@ function investigation(): SessionInvestigation {
           place: 1,
           title: "A North Gate",
           description: null,
+          atlas: {
+            vnum: 4001,
+            zone_id: 40,
+            zone_label: "Midgaard",
+            sector: "urban",
+            atlas_digest: "fixture",
+            confidence: "high",
+            evidence: ["atlas:4001"],
+          },
           exits: ["north"],
           mobs: [],
           objects: [],
@@ -381,6 +400,15 @@ function investigation(): SessionInvestigation {
           place: 2,
           title: "Inside the Gate",
           description: null,
+          atlas: {
+            vnum: 4002,
+            zone_id: 40,
+            zone_label: "Midgaard",
+            sector: "inside",
+            atlas_digest: "fixture",
+            confidence: "high",
+            evidence: ["atlas:4002"],
+          },
           exits: ["south"],
           mobs: [],
           objects: [],
@@ -483,6 +511,7 @@ function renderWorkspace(
 
 describe("SessionsWorkspace", () => {
   beforeEach(() => {
+    primeRoomLayout(worldLayout);
     window.history.replaceState(null, "", "/sessions");
   });
 
@@ -560,7 +589,7 @@ describe("SessionsWorkspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Map" }));
 
-    expect(screen.getByRole("group", { name: "Map camera" }))
+    expect(await screen.findByRole("group", { name: "Map camera" }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Follow" }))
       .toHaveAttribute("aria-pressed", "true");

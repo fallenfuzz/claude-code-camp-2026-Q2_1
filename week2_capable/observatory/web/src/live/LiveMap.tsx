@@ -19,8 +19,8 @@ import {
   canonicalNodeId,
   mapRoomHeight,
   mapRoomWidth,
-  reflowMapGraph,
   type MapConnection,
+  type MapGraph,
   type MapPoint,
 } from "./mapModel";
 import {
@@ -40,7 +40,19 @@ import {
   type MapSafeInsets,
 } from "./mapCamera";
 import { LiveMapAgent } from "./LiveMapAgent";
+import { mapBentPath, mapRoomEdge } from "./mapDrawing";
 import { LiveMapFrontier } from "./LiveMapFrontier";
+import { LiveMapFloorFeatures } from "./LiveMapFloorFeatures";
+import {
+  floorSwapMilliseconds,
+  floorWarpHoldMilliseconds,
+  floorWarpLegMilliseconds,
+  floorWarpMilliseconds,
+  LiveMapFloorWarp,
+  type FloorWarpDrawing,
+  type FloorWarpPhase,
+} from "./LiveMapFloorWarp";
+import { LiveMapGhosts } from "./LiveMapGhosts";
 import { LiveMapLegend } from "./LiveMapLegend";
 import { LiveMapRoom } from "./LiveMapRoom";
 import { LiveMapToolbar } from "./LiveMapToolbar";
@@ -61,7 +73,12 @@ import {
   type MapOverlayRect,
 } from "./mapPresentation";
 import { mapRoomFootprint } from "./mapRoomFootprint";
+import { projectMapFloorFeatures } from "./mapFloorProjection";
+import { projectMapGhosts } from "./mapGhostProjection";
+import { projectMapConnections } from "./mapConnectionPresentation";
+import { emptyRoomLayout } from "./roomLayout";
 import { useRoomLayout } from "./useRoomLayout";
+import { useAtlasZone } from "./useAtlasZone";
 import {
   projectRoomInspector,
   type RoomInspectorProjection,
@@ -98,6 +115,11 @@ type DragState = {
   moved: boolean;
 };
 
+type FloorWarpState = FloorWarpDrawing & {
+  id: string;
+  targetGraph: MapGraph;
+};
+
 export function LiveMap({
   controls = "full",
   identity,
@@ -125,8 +147,11 @@ export function LiveMap({
   const [legendExpanded, setLegendExpanded] = useState(
     controls === "session",
   );
+  const [ghostsVisible, setGhostsVisible] = useState(true);
   const [panHintVisible, setPanHintVisible] = useState(true);
   const [dragging, setDragging] = useState(false);
+  const [arrivingRoomId, setArrivingRoomId] = useState<string | null>(null);
+  const [floorWarp, setFloorWarp] = useState<FloorWarpState | null>(null);
   const [safeInsets, setSafeInsets] = useState(defaultSafeInsets);
   const [focusOverlayRects, setFocusOverlayRects] = useState<MapOverlayRect[]>(
     [],
@@ -134,7 +159,6 @@ export function LiveMap({
   const [markerOverlayRects, setMarkerOverlayRects] = useState<MapOverlayRect[]>(
     [],
   );
-  const [reflowRevision, setReflowRevision] = useState(0);
   const stageRef = useRef<HTMLElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -144,15 +168,19 @@ export function LiveMap({
   const followAnchorRef = useRef<MapPoint | null>(null);
   const followInitializedRef = useRef(false);
   const previousCurrentRoomIdRef = useRef<string | null>(null);
+  const agentCenterRef = useRef<MapPoint | null>(null);
+  const agentDestinationRoomRef = useRef<string | null>(null);
+  const previousFloorRef = useRef<string | null>(null);
 
-  const world = useRoomLayout();
-  const graph = useMemo(() => {
+  const loadedWorld = useRoomLayout();
+  const world = loadedWorld ?? emptyRoomLayout;
+  const observedGraph = useMemo(() => {
+    if (world.rooms === 0) return buildMapGraph([], [], world);
     const nodes = snapshot?.world.nodes ?? [];
     const edges = snapshot?.world.edges ?? [];
-    return reflowRevision === 0
-      ? buildMapGraph(nodes, edges, world)
-      : reflowMapGraph(nodes, edges, world);
-  }, [reflowRevision, snapshot, world]);
+    return buildMapGraph(nodes, edges, world);
+  }, [snapshot, world]);
+  const [graph, setGraph] = useState(observedGraph);
   const evidenceMarkers = useMemo(() => {
     return projectMapEvidence(
       snapshot?.world.nodes ?? [],
@@ -174,29 +202,106 @@ export function LiveMap({
       return node.id === graph.currentRoomId;
     })?.point ?? null;
   }, [graph.currentRoomId, graph.rooms]);
+  agentDestinationRoomRef.current = graph.currentRoomId;
+  const atlasNodes = useAtlasZone(graph.floor?.zone ?? null);
+  const visitedVnums = useMemo(() => {
+    return new Set(graph.rooms.flatMap(({ node }) => {
+      const vnum = node.atlas?.vnum;
+      return vnum === undefined || vnum === null ? [] : [vnum];
+    }));
+  }, [graph.rooms]);
+  const gameProjection = useMemo(() => {
+    if (graph.floor === null) {
+      return { links: [], rooms: [] };
+    }
+    return projectMapGhosts({
+      atlasNodes,
+      floor: world.floor(graph.floor.zone, graph.floor.level),
+      layout: world,
+      visitedVnums,
+    });
+  }, [atlasNodes, graph.floor, visitedVnums, world]);
+  const ghostProjection = ghostsVisible
+    ? gameProjection
+    : { links: [], rooms: [] };
+  const displayConnections = useMemo(() => projectMapConnections(
+    graph.connections,
+    graph.rooms,
+    gameProjection.links,
+  ), [gameProjection.links, graph.connections, graph.rooms]);
   // The room it came from, kept only while the step is worth animating: a
-  // move to somewhere already on the map, not the first room of a session
-  // and not a jump to a room the map has never drawn.
+  // move to somewhere already on this fixed floor, not the first room of a
+  // session and not a cross-floor transition.
   const walkedFromRef = useRef<MapPoint | null>(null);
   const lastAgentRoomRef = useRef<string | null>(null);
   const lastAgentPointRef = useRef<MapPoint | null>(null);
   if (graph.currentRoomId !== lastAgentRoomRef.current) {
-    walkedFromRef.current = lastAgentRoomRef.current === null
-      ? null
-      : lastAgentPointRef.current;
+    const previousRoomId = lastAgentRoomRef.current;
+    const planarStep = previousRoomId !== null && displayConnections.some(
+      (connection) => (
+        !connection.vertical
+        && (
+          connection.source === previousRoomId
+          && connection.target === graph.currentRoomId
+          || connection.target === previousRoomId
+          && connection.source === graph.currentRoomId
+        )
+      ),
+    );
+    walkedFromRef.current = planarStep ? lastAgentPointRef.current : null;
     lastAgentRoomRef.current = graph.currentRoomId;
     lastAgentPointRef.current = agentPoint;
   }
   const walkedFrom = walkedFromRef.current;
+  const visibleFrontiers = ghostsVisible ? [] : evidenceMarkers.frontiers;
+  const floorFeatures = useMemo(() => projectMapFloorFeatures({
+    nodes: snapshot?.world.nodes ?? [],
+    edges: snapshot?.world.edges ?? [],
+    rooms: graph.rooms,
+    verticalByRoom: evidenceMarkers.verticalByRoom,
+    layout: world,
+    gameLinks: gameProjection.links,
+  }), [
+    evidenceMarkers.verticalByRoom,
+    gameProjection.links,
+    graph.rooms,
+    snapshot,
+    world,
+  ]);
+  const observedFloorFeatures = useMemo(() => {
+    const observedEvidence = projectMapEvidence(
+      snapshot?.world.nodes ?? [],
+      snapshot?.world.edges ?? [],
+      snapshot?.world.frontier ?? [],
+      observedGraph.rooms,
+    );
+    return projectMapFloorFeatures({
+      nodes: snapshot?.world.nodes ?? [],
+      edges: snapshot?.world.edges ?? [],
+      rooms: observedGraph.rooms,
+      verticalByRoom: observedEvidence.verticalByRoom,
+      layout: world,
+    });
+  }, [observedGraph, snapshot, world]);
   const lanternOpacities = useMemo(() => {
     return projectLanternOpacities(graph);
   }, [graph]);
   const markerPoints = useMemo(() => {
-    return evidenceMarkers.frontiers.map(({ source, end }) => ({
-      source,
-      point: end,
-    }));
-  }, [evidenceMarkers.frontiers]);
+    return [
+      ...visibleFrontiers.map(({ source, end }) => ({
+        source,
+        point: end,
+      })),
+      ...floorFeatures.stairs.map((stair) => ({
+        source: stair.source,
+        point: stair.disc,
+      })),
+      ...floorFeatures.holes.flatMap((hole) => hole.ways.map((way) => ({
+        source: hole.id,
+        point: way.anchor,
+      }))),
+    ];
+  }, [floorFeatures, visibleFrontiers]);
   const completeRoomIds = useMemo(() => {
     return new Set(graph.rooms.map(({ node }) => node.id));
   }, [graph.rooms]);
@@ -315,22 +420,157 @@ export function LiveMap({
     setSelectedRoomId(null);
     syncSelectedRoomToLocation(null);
   }, []);
+  const trackAgentPosition = useCallback((point: MapPoint) => {
+    agentCenterRef.current = point;
+  }, []);
+  const showAgentArrival = useCallback(() => {
+    const roomId = agentDestinationRoomRef.current;
+    if (roomId === null) return;
+    setArrivingRoomId(roomId);
+    window.setTimeout(() => {
+      setArrivingRoomId((current) => current === roomId ? null : current);
+    }, 360);
+  }, []);
+  useEffect(() => {
+    if (floorWarp !== null || graph === observedGraph) return;
+    const leavingFloor = floorKey(graph);
+    const arrivingFloor = floorKey(observedGraph);
+    if (
+      leavingFloor === null
+      || arrivingFloor === null
+      || leavingFloor === arrivingFloor
+    ) {
+      setGraph(observedGraph);
+      return;
+    }
+    const leavingRoomId = graph.currentRoomId;
+    const arrivingRoomId = observedGraph.currentRoomId;
+    if (leavingRoomId === null || arrivingRoomId === null) {
+      setGraph(observedGraph);
+      return;
+    }
+    const leavingVnum = graph.rooms.find(({ node }) => (
+      node.id === leavingRoomId
+    ))?.node.atlas?.vnum;
+    const arrivingVnum = observedGraph.rooms.find(({ node }) => (
+      node.id === arrivingRoomId
+    ))?.node.atlas?.vnum;
+    const leavingStair = floorFeatures.stairs.find((stair) => (
+      stair.source === leavingRoomId
+      && (arrivingVnum === undefined || stair.targetVnum === arrivingVnum)
+    ));
+    const arrivingStair = observedFloorFeatures.stairs.find((stair) => (
+      stair.source === arrivingRoomId
+      && (leavingVnum === undefined || stair.targetVnum === leavingVnum)
+    ));
+    const leavingRoom = roomCenter(graph, leavingRoomId);
+    const arrivingRoom = roomCenter(observedGraph, arrivingRoomId);
+    if (
+      leavingStair === undefined
+      || arrivingStair === undefined
+      || leavingRoom === null
+      || arrivingRoom === null
+    ) {
+      setGraph(observedGraph);
+      return;
+    }
+    setFloorWarp({
+      id: `${leavingFloor}:${leavingRoomId}:${arrivingFloor}:${arrivingRoomId}`,
+      phase: "walk-out",
+      phaseStarted: performance.now(),
+      direction: leavingStair.way,
+      leavingRoom,
+      leavingDisc: leavingStair.disc,
+      arrivingDisc: arrivingStair.disc,
+      arrivingRoom,
+      targetGraph: observedGraph,
+    });
+  }, [
+    floorFeatures.stairs,
+    floorWarp,
+    graph,
+    observedFloorFeatures.stairs,
+    observedGraph,
+    showAgentArrival,
+  ]);
+  const floorWarpId = floorWarp?.id ?? null;
+  useEffect(() => {
+    if (floorWarpId === null) return;
+    const transition = floorWarp;
+    if (transition === null || transition.phase !== "walk-out") return;
+    const timers: number[] = [];
+    const advance = (after: number, phase: FloorWarpPhase) => {
+      timers.push(window.setTimeout(() => {
+        setFloorWarp((current) => current?.id === floorWarpId
+          ? { ...current, phase, phaseStarted: performance.now() }
+          : current);
+      }, after));
+    };
+    const warpOutAt = floorWarpLegMilliseconds;
+    const leaveFloorAt = warpOutAt
+      + floorWarpMilliseconds
+      + floorWarpHoldMilliseconds;
+    const swapFloorAt = leaveFloorAt + floorSwapMilliseconds;
+    const walkInAt = swapFloorAt
+      + floorWarpMilliseconds
+      + floorWarpHoldMilliseconds;
+    const completeAt = walkInAt + floorWarpLegMilliseconds;
+    advance(warpOutAt, "warp-out");
+    advance(leaveFloorAt, "floor-leaving");
+    timers.push(window.setTimeout(() => {
+      setGraph(transition.targetGraph);
+      cameraViewRef.current = {
+        center: transition.arrivingDisc,
+        scale: cameraViewRef.current.scale,
+      };
+      setCameraView((current) => ({
+        center: transition.arrivingDisc,
+        scale: current.scale,
+      }));
+      setFloorWarp((current) => current?.id === floorWarpId
+        ? { ...current, phase: "warp-in", phaseStarted: performance.now() }
+        : current);
+    }, swapFloorAt));
+    advance(walkInAt, "walk-in");
+    timers.push(window.setTimeout(() => {
+      setFloorWarp((current) => current?.id === floorWarpId ? null : current);
+      showAgentArrival();
+    }, completeAt));
+    return () => timers.forEach(window.clearTimeout);
+  }, [floorWarpId, showAgentArrival]);
+  useEffect(() => {
+    const floor = graph.floor === null
+      ? null
+      : `${graph.floor.zone}:${graph.floor.level}`;
+    const previous = previousFloorRef.current;
+    previousFloorRef.current = floor;
+    if (
+      floorWarp === null
+      && previous !== null
+      && floor !== null
+      && previous !== floor
+    ) {
+      showAgentArrival();
+    }
+  }, [floorWarp, graph.floor, showAgentArrival]);
   useEffect(() => {
     cameraViewRef.current = cameraView;
   }, [cameraView]);
 
   useEffect(() => {
-    if (cameraMode !== "follow" || graph.currentRoomId === null) {
+    const currentRoomId = graph.currentRoomId;
+    const previousRoomId = previousCurrentRoomIdRef.current;
+    previousCurrentRoomIdRef.current = currentRoomId;
+    if (cameraMode !== "follow" || currentRoomId === null) {
       followVelocityRef.current = { x: 0, y: 0 };
       followAnchorRef.current = null;
       return;
     }
-    const currentRoomId = graph.currentRoomId;
-    const previousRoomId = previousCurrentRoomIdRef.current;
     if (!followInitializedRef.current) {
       followInitializedRef.current = true;
       followVelocityRef.current = { x: 0, y: 0 };
       followAnchorRef.current = currentCenter;
+      agentCenterRef.current = currentCenter;
       cameraViewRef.current = {
         center: currentCenter,
         scale: cameraViewRef.current.scale,
@@ -347,16 +587,16 @@ export function LiveMap({
       previousRoomId,
       currentRoomId,
     );
-    const anchor = {
-      center: followAnchorRef.current ?? cameraViewRef.current.center,
-      scale: cameraViewRef.current.scale,
-    };
-    const targetView = connectedMovement
-      ? resolveFollowMapCameraAnchor(anchor, currentCenter, frame)
-      : { center: currentCenter, scale: anchor.scale };
-    const target = targetView.center;
+    const target = connectedMovement
+      ? resolveFollowMapCameraAnchor({
+        center: followAnchorRef.current ?? cameraViewRef.current.center,
+        scale: cameraViewRef.current.scale,
+      }, agentCenterRef.current ?? currentCenter, frame).center
+      : currentCenter;
     followAnchorRef.current = target;
     if (
+      !connectedMovement
+      &&
       Math.abs(start.x - target.x) < 0.01
       && Math.abs(start.y - target.y) < 0.01
     ) {
@@ -408,18 +648,23 @@ export function LiveMap({
         0.1,
       );
       previousFrameAt = now;
+      const movingTarget = resolveFollowMapCameraAnchor({
+        center: followAnchorRef.current ?? cameraViewRef.current.center,
+        scale: cameraViewRef.current.scale,
+      }, agentCenterRef.current ?? currentCenter, frame).center;
+      followAnchorRef.current = movingTarget;
       const motion = stepCriticallyDampedMapCenter({
         center: cameraViewRef.current.center,
         velocity: followVelocityRef.current,
-      }, target, deltaSeconds);
+      }, movingTarget, deltaSeconds);
       const settled = (
         Math.hypot(
-          motion.center.x - target.x,
-          motion.center.y - target.y,
+          motion.center.x - movingTarget.x,
+          motion.center.y - movingTarget.y,
         ) < 0.05
         && Math.hypot(motion.velocity.x, motion.velocity.y) < 0.05
       );
-      const nextCenter = settled ? target : motion.center;
+      const nextCenter = settled ? movingTarget : motion.center;
       followVelocityRef.current = settled
         ? { x: 0, y: 0 }
         : motion.velocity;
@@ -431,7 +676,11 @@ export function LiveMap({
         center: nextCenter,
         scale: current.scale,
       }));
-      if (!settled) {
+      const agentAtDestination = Math.hypot(
+        (agentCenterRef.current?.x ?? currentCenter.x) - currentCenter.x,
+        (agentCenterRef.current?.y ?? currentCenter.y) - currentCenter.y,
+      ) < 0.05;
+      if (!settled || !agentAtDestination) {
         animationFrame = requestAnimationFrame(update);
       }
     };
@@ -567,6 +816,11 @@ export function LiveMap({
     followAnchorRef.current = null;
     followInitializedRef.current = false;
     previousCurrentRoomIdRef.current = null;
+    agentCenterRef.current = null;
+    previousFloorRef.current = null;
+    setArrivingRoomId(null);
+    setFloorWarp(null);
+    setGraph(observedGraph);
     setSafeInsets(defaultSafeInsets);
     setFocusOverlayRects([]);
     setMarkerOverlayRects([]);
@@ -576,7 +830,6 @@ export function LiveMap({
     setThoughtExpanded(overlayExpandedByDefault());
     setLegendExpanded(controls === "session");
     setPanHintVisible(true);
-    setReflowRevision(0);
   }, [controls, identity.sessionId, initialMapScale]);
 
   useEffect(() => {
@@ -632,7 +885,11 @@ export function LiveMap({
   if (graph.rooms.length === 0) {
     return (
       <div className="live-map-message" role="status">
-        Waiting for the first observed room.
+        {loadedWorld === null
+          ? "Loading the fixed world map…"
+          : world.rooms === 0
+            ? "Fixed world map unavailable."
+            : "Waiting for the first observed room."}
       </div>
     );
   }
@@ -709,6 +966,8 @@ export function LiveMap({
       x: viewport.width / bounds.width,
       y: viewport.height / bounds.height,
     });
+    cameraViewRef.current = panned;
+    setCameraView(panned);
   };
   const stopDragging = (event: ReactPointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
@@ -792,6 +1051,8 @@ export function LiveMap({
         minimumZoom={minimumMapZoom}
         maximumZoom={maximumMapZoom}
         onCameraChange={handleCameraChange}
+        ghosts={ghostsVisible}
+        onGhostsChange={setGhostsVisible}
         onModeChange={handleModeChange}
         onZoom={handleZoom}
       />
@@ -817,6 +1078,30 @@ export function LiveMap({
         onDragStart={(event) => event.preventDefault()}
       >
         <defs>
+          <marker
+            id="live-map-one-way-tip"
+            markerHeight="7"
+            markerUnits="userSpaceOnUse"
+            markerWidth="7"
+            orient="auto"
+            refX="6"
+            refY="3"
+            viewBox="0 0 6 6"
+          >
+            <path className="live-map-one-way-tip" d="M0 0 L6 3 L0 6 z" />
+          </marker>
+          <marker
+            id="live-map-one-way-tip-walked"
+            markerHeight="7"
+            markerUnits="userSpaceOnUse"
+            markerWidth="7"
+            orient="auto"
+            refX="6"
+            refY="3"
+            viewBox="0 0 6 6"
+          >
+            <path className="live-map-one-way-tip-walked" d="M0 0 L6 3 L0 6 z" />
+          </marker>
           <radialGradient id="live-current-room-glow" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#4fd6c9" stopOpacity=".55" />
             <stop offset="100%" stopColor="#4fd6c9" stopOpacity="0" />
@@ -840,19 +1125,21 @@ export function LiveMap({
             </radialGradient>
           ) : null}
         </defs>
-        {mode === "lantern" && currentPoint !== undefined ? (
-          <rect
-            className="live-map-lantern-field"
-            fill="url(#live-map-lantern-gradient)"
-            height={viewport.height}
-            pointerEvents="none"
-            width={viewport.width}
-            x={viewport.x}
-            y={viewport.y}
-          />
-        ) : null}
-        <g className="live-map-connections">
-          {graph.connections.flatMap((connection) => {
+        <g className={floorPlaneClass(floorWarp)}>
+          {mode === "lantern" && currentPoint !== undefined ? (
+            <rect
+              className="live-map-lantern-field"
+              fill="url(#live-map-lantern-gradient)"
+              height={viewport.height}
+              pointerEvents="none"
+              width={viewport.width}
+              x={viewport.x}
+              y={viewport.y}
+            />
+          ) : null}
+          <LiveMapGhosts {...ghostProjection} />
+          <g className="live-map-connections">
+          {displayConnections.flatMap((connection) => {
             if (!presentation.visibleConnectionIds.has(connection.id)) {
               return [];
             }
@@ -869,9 +1156,9 @@ export function LiveMap({
               />
             )];
           })}
-        </g>
-        <g className="live-map-frontiers">
-          {evidenceMarkers.frontiers.flatMap((marker) => {
+          </g>
+          <g className="live-map-frontiers">
+          {visibleFrontiers.flatMap((marker) => {
             if (!presentation.visibleRoomIds.has(marker.source)) return [];
             return [(
               <g key={marker.id} opacity={roomOpacity(marker.source)}>
@@ -879,8 +1166,8 @@ export function LiveMap({
               </g>
             )];
           })}
-        </g>
-        <g className="live-map-rooms">
+          </g>
+          <g className="live-map-rooms">
           {graph.rooms.flatMap(({ node, point }) => {
             if (!presentation.visibleRoomIds.has(node.id)) return [];
             return [(
@@ -889,21 +1176,36 @@ export function LiveMap({
                   node={node}
                   point={point}
                   current={node.id === graph.currentRoomId}
+                  arriving={node.id === arrivingRoomId}
                   selected={node.id === selectedRoomId}
                   combat={Boolean(
                     snapshot.combat && node.id === graph.currentRoomId,
                   )}
                   beacon={beaconRoomIds.has(node.id)}
                   verticalMarkers={
-                    evidenceMarkers.verticalByRoom.get(node.id) ?? []
+                    []
                   }
                   onSelect={handleSelectRoom}
                 />
               </g>
             )];
           })}
+          </g>
+          <LiveMapFloorFeatures {...floorFeatures} />
         </g>
-        <LiveMapAgent from={walkedFrom} to={agentPoint} />
+        {floorWarp === null ? (
+          <LiveMapAgent
+            from={walkedFrom}
+            to={agentPoint}
+            onPosition={trackAgentPosition}
+            onArrival={showAgentArrival}
+          />
+        ) : (
+          <LiveMapFloorWarp
+            drawing={floorWarp}
+            onPosition={trackAgentPosition}
+          />
+        )}
       </svg>
       {inspector === null ? null : (
         <LiveRoomInspector
@@ -961,10 +1263,10 @@ function MapLink({
   };
   // A link joins two rooms and stops where each begins. Drawn centre to
   // centre it runs under both of them, which reads as passing through.
-  const start = roomEdge(from, to);
-  const end = roomEdge(to, from);
-  const path = connection.bent
-    ? bentPath(start, end)
+  const start = mapRoomEdge(from, to);
+  const end = mapRoomEdge(to, from);
+  const path = connection.hop || connection.bent
+    ? mapBentPath(start, end)
     : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
   const className = [
     "live-map-link",
@@ -975,32 +1277,16 @@ function MapLink({
   ].filter(Boolean).join(" ");
   return (
     <g className={className} opacity={opacity}>
-      <path d={path} />
+      <path
+        d={path}
+        markerEnd={connection.oneWay
+          ? connection.walked
+            ? "url(#live-map-one-way-tip-walked)"
+            : "url(#live-map-one-way-tip)"
+          : undefined}
+      />
     </g>
   );
-}
-
-/** Where a line between two room centres leaves the first room's box. */
-function roomEdge(from: MapPoint, to: MapPoint): MapPoint {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  if (deltaX === 0 && deltaY === 0) return from;
-  const half = { x: mapRoomWidth / 2 + 2, y: mapRoomHeight / 2 + 2 };
-  const scale = Math.min(
-    Math.abs(deltaX) > 0.001 ? Math.abs(half.x / deltaX) : Infinity,
-    Math.abs(deltaY) > 0.001 ? Math.abs(half.y / deltaY) : Infinity,
-  );
-  return { x: from.x + deltaX * scale, y: from.y + deltaY * scale };
-}
-
-function bentPath(source: MapPoint, target: MapPoint): string {
-  const bow = Math.hypot(target.x - source.x, target.y - source.y) * 0.16 + 10;
-  const middleX = (source.x + target.x) / 2;
-  const middleY = (source.y + target.y) / 2;
-  const straightDown = source.x === target.x;
-  const controlX = middleX + (straightDown ? bow : 0);
-  const controlY = middleY + (straightDown ? 0 : bow);
-  return `M ${source.x} ${source.y} Q ${controlX} ${controlY} ${target.x} ${target.y}`;
 }
 
 function overlayRectsEqual(
@@ -1016,4 +1302,20 @@ function overlayRectsEqual(
         && Math.abs(rect.width - candidate.width) < 1
         && Math.abs(rect.height - candidate.height) < 1;
     });
+}
+
+function floorKey(graph: MapGraph): string | null {
+  return graph.floor === null
+    ? null
+    : `${graph.floor.zone}:${graph.floor.level}`;
+}
+
+function floorPlaneClass(warp: FloorWarpState | null): string {
+  if (warp?.phase === "floor-leaving") {
+    return `live-map-plane is-leaving-${warp.direction}`;
+  }
+  if (warp?.phase === "warp-in") {
+    return `live-map-plane is-entering-${warp.direction}`;
+  }
+  return "live-map-plane";
 }

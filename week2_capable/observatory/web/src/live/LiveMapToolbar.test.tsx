@@ -93,6 +93,8 @@ function renderToolbar(
       zoom={1}
       minimumZoom={0.75}
       maximumZoom={2}
+      ghosts={true}
+      onGhostsChange={vi.fn()}
       onCameraChange={vi.fn()}
       onModeChange={vi.fn()}
       onZoom={vi.fn()}

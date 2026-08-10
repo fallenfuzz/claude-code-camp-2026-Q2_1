@@ -9,6 +9,7 @@ import type { WorldNode } from "../contracts";
  * and their origins have no relationship to each other.
  */
 export type RoomSquare = {
+  vnum: number;
   zone: number;
   level: number;
   x: number;
@@ -20,6 +21,8 @@ export type RoomLayout = {
   /** Links whose squares make their direction untrue, drawn as arcs. */
   arcs: ReadonlySet<string>;
   rooms: number;
+  /** Every room of one floor, so the ones never visited can be drawn. */
+  floor: (zone: number, level: number) => RoomSquare[];
 };
 
 /** Room number to zone, level, x, y, packed as an array to keep it small. */
@@ -34,6 +37,7 @@ export const emptyRoomLayout: RoomLayout = {
   square: () => null,
   arcs: new Set<string>(),
   rooms: 0,
+  floor: () => [],
 };
 
 export function arcKey(source: number, direction: string, target: number) {
@@ -44,6 +48,7 @@ export function readRoomLayout(file: LayoutFile): RoomLayout {
   const squares = new Map<number, RoomSquare>();
   for (const [vnum, packed] of Object.entries(file.rooms)) {
     squares.set(Number(vnum), {
+      vnum: Number(vnum),
       zone: packed[0],
       level: packed[1],
       x: packed[2],
@@ -54,10 +59,18 @@ export function readRoomLayout(file: LayoutFile): RoomLayout {
     file.arcs.map(([source, direction, target]) =>
       arcKey(source, direction, target)),
   );
+  const floors = new Map<string, RoomSquare[]>();
+  for (const square of squares.values()) {
+    const key = `${square.zone}:${square.level}`;
+    const here = floors.get(key);
+    if (here === undefined) floors.set(key, [square]);
+    else here.push(square);
+  }
   return {
     square: (vnum) => squares.get(vnum) ?? null,
     arcs,
     rooms: squares.size,
+    floor: (zone, level) => floors.get(`${zone}:${level}`) ?? [],
   };
 }
 

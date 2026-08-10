@@ -10,6 +10,7 @@ import {
   mapRoomWidth,
   type MapPoint,
 } from "./mapModel";
+import { mapRoomEdge } from "./mapDrawing";
 
 /** How long the agent takes to walk one link, from the mockup. */
 export const agentTravelMilliseconds = 420;
@@ -17,6 +18,8 @@ export const agentTravelMilliseconds = 420;
 type Props = {
   from: MapPoint | null;
   to: MapPoint | null;
+  onPosition?: (point: MapPoint) => void;
+  onArrival?: () => void;
 };
 
 /**
@@ -26,7 +29,12 @@ type Props = {
  * lights up behind it as it goes. A marker that appears in its destination
  * says a room changed. One that walks says which way it went.
  */
-export const LiveMapAgent = memo(function LiveMapAgent({ from, to }: Props) {
+export const LiveMapAgent = memo(function LiveMapAgent({
+  from,
+  to,
+  onPosition,
+  onArrival,
+}: Props) {
   const [now, setNow] = useState(() => performance.now());
   const startedRef = useRef<number | null>(null);
   const travelling = from !== null && to !== null;
@@ -39,12 +47,20 @@ export const LiveMapAgent = memo(function LiveMapAgent({ from, to }: Props) {
     startedRef.current = performance.now();
     let frame = 0;
     const tick = () => {
-      setNow(performance.now());
-      frame = requestAnimationFrame(tick);
+      const current = performance.now();
+      setNow(current);
+      if (
+        startedRef.current !== null
+        && current - startedRef.current < agentTravelMilliseconds
+      ) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        onArrival?.();
+      }
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [from?.x, from?.y, to?.x, to?.y, travelling]);
+  }, [from?.x, from?.y, onArrival, to?.x, to?.y, travelling]);
 
   if (to === null) return null;
   const centre = (point: MapPoint) => ({
@@ -53,7 +69,14 @@ export const LiveMapAgent = memo(function LiveMapAgent({ from, to }: Props) {
   });
   const target = centre(to);
   if (!travelling || startedRef.current === null) {
-    return <AgentFigure at={target} moving={false} facing={1} />;
+    return (
+      <LiveMapAgentFigure
+        at={target}
+        moving={false}
+        facing={1}
+        onPosition={onPosition}
+      />
+    );
   }
 
   const source = centre(from);
@@ -65,16 +88,17 @@ export const LiveMapAgent = memo(function LiveMapAgent({ from, to }: Props) {
     x: source.x + (target.x - source.x) * part,
     y: source.y + (target.y - source.y) * part,
   };
-  const start = roomEdge(source, target);
-  const stop = roomEdge(target, source);
+  const start = mapRoomEdge(source, target);
+  const stop = mapRoomEdge(target, source);
   return (
     <g className="live-map-agent-layer">
-      <AgentTrail start={start} stop={stop} at={at} />
-      <AgentFigure
+      <LiveMapAgentTrail start={start} stop={stop} at={at} />
+      <LiveMapAgentFigure
         at={at}
         facing={target.x < source.x ? -1 : 1}
         moving={part < 1}
         now={now}
+        onPosition={onPosition}
       />
     </g>
   );
@@ -85,26 +109,13 @@ function eased(part: number): number {
   return part * part * (3 - 2 * part);
 }
 
-/** Where a line between two room centres leaves the first room's box. */
-function roomEdge(from: MapPoint, to: MapPoint): MapPoint {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  if (deltaX === 0 && deltaY === 0) return from;
-  const half = { x: mapRoomWidth / 2 + 2, y: mapRoomHeight / 2 + 2 };
-  const scale = Math.min(
-    Math.abs(deltaX) > 0.001 ? Math.abs(half.x / deltaX) : Infinity,
-    Math.abs(deltaY) > 0.001 ? Math.abs(half.y / deltaY) : Infinity,
-  );
-  return { x: from.x + deltaX * scale, y: from.y + deltaY * scale };
-}
-
 /**
  * The link lighting up behind the agent, laid down at the pace of the walk.
  * Clamped by how far along the line the agent is, not by how far it is from
  * the start, because it leaves from the middle of a room and only reaches
  * the line at the room's edge.
  */
-function AgentTrail({ start, stop, at }: {
+export function LiveMapAgentTrail({ start, stop, at }: {
   start: MapPoint;
   stop: MapPoint;
   at: MapPoint;
@@ -127,19 +138,60 @@ function AgentTrail({ start, stop, at }: {
   );
 }
 
-function AgentFigure({ at, facing, moving, now = 0 }: {
+export function LiveMapAgentFigure({
+  at,
+  facing,
+  moving,
+  now = 0,
+  onPosition,
+  warp = 0,
+}: {
   at: MapPoint;
   facing: number;
   moving: boolean;
   now?: number;
+  onPosition?: (point: MapPoint) => void;
+  warp?: number;
 }) {
+  useEffect(() => {
+    onPosition?.(at);
+  }, [at.x, at.y, onPosition]);
   const bob = moving ? Math.sin(now / 70) * 1.6 : 0;
+  const shrink = 1 - 0.82 * warp;
+  const spin = warp * 540;
   return (
-    <g className="live-map-agent">
-      <circle className="ring" cx={at.x} cy={at.y} r={moving ? 15 : 13} />
+    <g className={[
+      "live-map-agent",
+      warp > 0 ? "is-warping" : "",
+    ].filter(Boolean).join(" ")}>
+      <circle
+        className="ring"
+        cx={at.x}
+        cy={at.y}
+        opacity={(1 - warp) * 0.55}
+        r={moving ? 15 : 13}
+      />
+      {warp <= 0 ? null : [0, 1, 2].map((index) => {
+        const turn = Math.min(1, warp * (1 + index * 0.35));
+        return (
+          <circle
+            className="ring is-warp"
+            cx={at.x}
+            cy={at.y}
+            key={index}
+            opacity={Math.min(1, warp * 1.4) * (0.85 - index * 0.22)}
+            r={Math.max(0, (30 + index * 13) * (1 - turn * 0.72))}
+            transform={`rotate(${spin + index * 40} ${at.x} ${at.y})`}
+          />
+        );
+      })}
       <g
         className="figure"
-        transform={`translate(${at.x} ${at.y + bob}) scale(${facing} 1)`}
+        transform={[
+          `translate(${at.x} ${at.y + bob})`,
+          `rotate(${spin})`,
+          `scale(${facing * shrink} ${shrink})`,
+        ].join(" ")}
       >
         <circle cx="0" cy="-7" r="3.4" />
         <path

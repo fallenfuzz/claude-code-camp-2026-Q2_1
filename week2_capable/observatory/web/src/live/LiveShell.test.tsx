@@ -21,6 +21,16 @@ import type {
   Snapshot,
 } from "../contracts";
 import { LiveShell } from "./LiveShell";
+import { primeRoomLayout } from "./roomLayout.fixture";
+
+/** Both fixture rooms on one floor, the hallway north into the nexus. */
+const worldLayout = {
+  rooms: {
+    3001: [30, 0, 1, 0] as [number, number, number, number],
+    3002: [30, 0, 1, 1] as [number, number, number, number],
+  },
+  arcs: [],
+};
 
 const identity = {
   playerId: "poucet",
@@ -161,6 +171,15 @@ function runtimeSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
           place: 1,
           title: "More Of The Hallway",
           description: null,
+          atlas: {
+            vnum: 3002,
+            zone_id: 30,
+            zone_label: "Midgaard",
+            sector: "inside",
+            atlas_digest: "fixture",
+            confidence: "high",
+            evidence: ["atlas:3002"],
+          },
           exits: ["n"],
           mobs: [],
           objects: [],
@@ -308,6 +327,7 @@ function useCatalog(catalog: Catalog): void {
 
 describe("Live shell", () => {
   beforeEach(() => {
+    primeRoomLayout(worldLayout);
     vi.stubGlobal("innerWidth", 1_280);
     window.history.replaceState(
       {},

@@ -12,6 +12,8 @@ type Props = {
   minimumZoom: number;
   maximumZoom: number;
   onCameraChange: (camera: MapCameraMode) => void;
+  ghosts: boolean;
+  onGhostsChange: (ghosts: boolean) => void;
   onModeChange: (mode: MapMode) => void;
   onZoom: (direction: "in" | "out") => void;
 };
@@ -30,6 +32,8 @@ export function LiveMapToolbar({
   minimumZoom,
   maximumZoom,
   onCameraChange,
+  ghosts,
+  onGhostsChange,
   onModeChange,
   onZoom,
 }: Props) {
@@ -94,6 +98,14 @@ export function LiveMapToolbar({
             {item.label}
           </button>
         ))}
+        <button
+          aria-pressed={ghosts}
+          title="Draw the rooms of this floor the agent has not entered"
+          type="button"
+          onClick={() => onGhostsChange(!ghosts)}
+        >
+          Ghosts
+        </button>
       </div>
       <button
         aria-label="Zoom in"
