@@ -222,3 +222,13 @@ capabilities:
     # it is a property of the hunt rather than of the character, and an
     # unset threshold makes the check say nothing rather than guess.
     # hunt_level_floor: 5
+
+  survival:
+    enabled: false
+
+    # The work the game will do that the agent would otherwise pay a decision
+    # for. Brief is deliberately absent: it stops the game printing the room
+    # description on arrival, and the look that makes up for it lives in the
+    # navigation executor, so an arm with survival on and navigation off
+    # would lose room descriptions as well as gaining the conveniences.
+    game_toggles: ["autoloot", "autogold", "autodoor", "autokey", "autosac"]
