@@ -8,6 +8,7 @@ import {
   LiveMapAgentTrail,
 } from "./LiveMapAgent";
 import { mapRoomEdge } from "./mapDrawing";
+import { border } from "./mapFloorProjection";
 import type { MapPoint } from "./mapModel";
 
 export const floorWarpLegMilliseconds = 340;
@@ -30,6 +31,7 @@ export type FloorWarpDrawing = {
   leavingDisc: MapPoint;
   arrivingDisc: MapPoint;
   arrivingRoom: MapPoint;
+  transientPortal?: boolean;
 };
 
 export function LiveMapFloorWarp({
@@ -51,28 +53,41 @@ export function LiveMapFloorWarp({
   }, [drawing.phase, drawing.phaseStarted]);
 
   const elapsed = Math.max(0, now - drawing.phaseStarted);
+  const arriving = drawing.phase === "warp-in" || drawing.phase === "walk-in";
+  const portal = drawing.transientPortal ? (
+    <TransitionPortal
+      at={arriving ? drawing.arrivingRoom : drawing.leavingRoom}
+      disc={arriving ? drawing.arrivingDisc : drawing.leavingDisc}
+    />
+  ) : null;
   if (drawing.phase === "walk-out") {
     return (
-      <WalkingLeg
-        from={drawing.leavingRoom}
-        now={now}
-        onPosition={onPosition}
-        outgoing
-        part={elapsed / floorWarpLegMilliseconds}
-        to={drawing.leavingDisc}
-      />
+      <g>
+        {portal}
+        <WalkingLeg
+          from={drawing.leavingRoom}
+          now={now}
+          onPosition={onPosition}
+          outgoing
+          part={elapsed / floorWarpLegMilliseconds}
+          to={drawing.leavingDisc}
+        />
+      </g>
     );
   }
   if (drawing.phase === "walk-in") {
     return (
-      <WalkingLeg
-        from={drawing.arrivingDisc}
-        now={now}
-        onPosition={onPosition}
-        outgoing={false}
-        part={elapsed / floorWarpLegMilliseconds}
-        to={drawing.arrivingRoom}
-      />
+      <g>
+        {portal}
+        <WalkingLeg
+          from={drawing.arrivingDisc}
+          now={now}
+          onPosition={onPosition}
+          outgoing={false}
+          part={elapsed / floorWarpLegMilliseconds}
+          to={drawing.arrivingRoom}
+        />
+      </g>
     );
   }
   const at = drawing.phase === "warp-in"
@@ -81,14 +96,42 @@ export function LiveMapFloorWarp({
   const progress = Math.min(1, elapsed / floorWarpMilliseconds);
   const warp = drawing.phase === "warp-in" ? 1 - progress : 1;
   return (
-    <LiveMapAgentFigure
-      at={at}
-      facing={1}
-      moving={false}
-      now={now}
-      onPosition={onPosition}
-      warp={drawing.phase === "warp-out" ? progress : warp}
-    />
+    <g>
+      {portal}
+      <LiveMapAgentFigure
+        at={at}
+        facing={1}
+        moving={false}
+        now={now}
+        onPosition={onPosition}
+        warp={drawing.phase === "warp-out" ? progress : warp}
+      />
+    </g>
+  );
+}
+
+function TransitionPortal({ at, disc }: { at: MapPoint; disc: MapPoint }) {
+  const corner = border(at, disc);
+  const span = Math.hypot(disc.x - corner.x, disc.y - corner.y);
+  const pull = span === 0
+    ? { x: 0, y: 0 }
+    : {
+        x: (disc.x - corner.x) / span * 17,
+        y: (disc.y - corner.y) / span * 17,
+      };
+  return (
+    <g className="live-map-transition-portal">
+      <path
+        className="live-map-transition-portal-tether"
+        d={`M ${corner.x} ${corner.y} L ${disc.x - pull.x} ${disc.y - pull.y}`}
+      />
+      <circle
+        className="live-map-transition-portal-disc"
+        cx={disc.x}
+        cy={disc.y}
+        r="17"
+      />
+    </g>
   );
 }
 

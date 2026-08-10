@@ -73,7 +73,10 @@ import {
   type MapOverlayRect,
 } from "./mapPresentation";
 import { mapRoomFootprint } from "./mapRoomFootprint";
-import { projectMapFloorFeatures } from "./mapFloorProjection";
+import {
+  placeMapTransitionPortal,
+  projectMapFloorFeatures,
+} from "./mapFloorProjection";
 import { projectMapGhosts } from "./mapGhostProjection";
 import { projectMapConnections } from "./mapConnectionPresentation";
 import { emptyRoomLayout } from "./roomLayout";
@@ -461,33 +464,51 @@ export function LiveMap({
     ));
     const leavingRoom = roomCenter(graph, leavingRoomId);
     const arrivingRoom = roomCenter(observedGraph, arrivingRoomId);
-    if (
-      leavingStair === undefined
-      || arrivingStair === undefined
-      || leavingRoom === null
-      || arrivingRoom === null
-    ) {
+    if (leavingRoom === null || arrivingRoom === null) {
       setGraph(observedGraph);
       return;
     }
+    const transientPortal = leavingStair === undefined
+      || arrivingStair === undefined;
+    const leavingDisc = leavingStair?.disc ?? placeMapTransitionPortal({
+      at: leavingRoom,
+      gameLinks: gameProjection.links,
+      id: `transition:${leavingFloor}:${leavingRoomId}`,
+      layout: world,
+      rooms: graph.rooms,
+      source: leavingRoomId,
+      arrival: false,
+    });
+    const arrivingDisc = arrivingStair?.disc ?? placeMapTransitionPortal({
+      at: arrivingRoom,
+      gameLinks: [],
+      id: `transition:${arrivingFloor}:${arrivingRoomId}`,
+      layout: world,
+      rooms: observedGraph.rooms,
+      source: arrivingRoomId,
+      arrival: true,
+    });
     setFloorWarp({
       id: `${leavingFloor}:${leavingRoomId}:${arrivingFloor}:${arrivingRoomId}`,
       phase: "walk-out",
       phaseStarted: performance.now(),
-      direction: leavingStair.way,
+      direction: leavingStair?.way ?? "down",
       leavingRoom,
-      leavingDisc: leavingStair.disc,
-      arrivingDisc: arrivingStair.disc,
+      leavingDisc,
+      arrivingDisc,
       arrivingRoom,
+      transientPortal,
       targetGraph: observedGraph,
     });
   }, [
     floorFeatures.stairs,
     floorWarp,
     graph,
+    gameProjection.links,
     observedFloorFeatures.stairs,
     observedGraph,
     showAgentArrival,
+    world,
   ]);
   const floorWarpId = floorWarp?.id ?? null;
   useEffect(() => {

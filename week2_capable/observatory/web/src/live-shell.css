@@ -3211,3 +3211,11 @@
   stroke: var(--color-coral);
   stroke-width: 1.7;
 }
+
+.live-map-transition-portal-tether,
+.live-map-transition-portal-disc {
+  fill: var(--color-bg);
+  stroke: var(--color-violet);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.8;
+}

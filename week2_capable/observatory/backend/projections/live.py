@@ -31,6 +31,7 @@ from ..contracts import (
     LiveZoneContext,
     WorldEdge,
     WorldAtlasRoomContext,
+    WorldNode,
     WorldProjection,
 )
 from ..sources.runtime import RuntimeSession
@@ -64,8 +65,15 @@ _COMBAT_OBSERVATION_COMMANDS = frozenset(
         "who",
     }
 )
+_COMBAT_EXCHANGE = re.compile(
+    r"^(?:You\b.*\b(?:hit|miss|slash|pierce|crush|bite|claw|attack|parry|"
+    r"dodge|punch|kick|swing|lunge|tickle)\w*\b|"
+    r"(?:The|A|An)\b.*\b(?:hit|miss|slash|pierce|crush|bite|claw|attack|"
+    r"parry|dodge|punch|kick|swing|lunge|tickle)\w*\b.*\byou\b)",
+    re.I,
+)
 _PLAYER_DEFEAT = re.compile(
-    r"\byou are dead\b|\byou have been killed\b|\bR\.I\.P\b",
+    r"\byou are dead\b|\byou have been killed\b",
     re.I,
 )
 _DEAD_OPPONENT = re.compile(r"^(?P<opponent>.+?)\s+is dead!", re.I)
@@ -189,9 +197,12 @@ def project_live(
     if current_room is None and room_observations:
         current_room = _text(room_observations[-1].payload.get("title"))
     world = project_world_events(gateway_prefix, objective=objective)
-    zone, atlas_contexts = _atlas_contexts(gateway_prefix, atlas)
-    if not atlas_contexts:
-        atlas_contexts = _graph_atlas_contexts(world, atlas)
+    zone, replayed_atlas_contexts = _atlas_contexts(gateway_prefix, atlas)
+    atlas_contexts = _graph_atlas_contexts(world, atlas)
+    atlas_contexts.update(replayed_atlas_contexts)
+    atlas_contexts.update(
+        _observer_atlas_contexts(gateway_prefix, atlas)
+    )
     vitals_event = next(
         (
             event
@@ -222,6 +233,18 @@ def project_live(
                 )
             }
         )
+    world = _observer_current_world(
+        world,
+        gateway_prefix,
+        atlas,
+        atlas_contexts,
+    )
+    current_node = next(
+        (node for node in world.nodes if node.state == "current"),
+        None,
+    )
+    if current_node is not None:
+        current_room = current_node.title
     room_economics, unattributed_room_economics = _room_economics(
         response_events,
         gateway_prefix,
@@ -525,6 +548,13 @@ def _atlas_contexts(
     if location is None:
         return None, {}
     commands: dict[str, tuple[str, int]] = {}
+    room_numbers = {
+        event.trace_id: event
+        for event in events
+        if event.kind == "room_number"
+        and event.trace_id is not None
+        and isinstance(event.payload.get("number"), int)
+    }
     movement_sequences: list[int] = []
     evidence = [f"gateway reset receipt seq {reset.seq}"]
     contexts: dict[int, WorldAtlasRoomContext] = {}
@@ -547,6 +577,30 @@ def _atlas_contexts(
             else None
         )
         title = _text(event.payload.get("title"))
+        observed_room = (
+            room_numbers.get(event.trace_id)
+            if event.trace_id is not None
+            else None
+        )
+        if observed_room is not None:
+            observed_location = atlas.locate(observed_room.payload["number"])
+            if observed_location is None:
+                return None, contexts
+            location = observed_location
+            if command is not None:
+                movement_sequences.extend((command[1], event.seq))
+            evidence.append(
+                f"gateway observer room number seq {observed_room.seq}"
+            )
+            _record_atlas_context(
+                contexts,
+                conflicts,
+                event.payload.get("place"),
+                location,
+                movement_sequences,
+                evidence,
+            )
+            continue
         if command is None:
             if title is not None and not _same_title(
                 title,
@@ -563,6 +617,16 @@ def _atlas_contexts(
             )
             continue
         direction, command_sequence = command
+        if event.payload.get("method") == "move-did-not-happen":
+            _record_atlas_context(
+                contexts,
+                conflicts,
+                event.payload.get("place"),
+                location,
+                movement_sequences,
+                evidence,
+            )
+            continue
         target_vnum = location.room.exits.get(direction)
         if target_vnum is None:
             return None, contexts
@@ -601,6 +665,121 @@ def _atlas_contexts(
             evidence=tuple(evidence),
         ),
         contexts,
+    )
+
+
+def _observer_atlas_contexts(
+    events: list[Event],
+    atlas: AtlasSource | None,
+) -> dict[int, WorldAtlasRoomContext]:
+    """Correlate learned places from the observer's exact per-move vnums."""
+
+    if atlas is None or not atlas.available:
+        return {}
+    room_numbers = {
+        event.trace_id: event
+        for event in events
+        if event.kind == "room_number"
+        and event.trace_id is not None
+        and isinstance(event.payload.get("number"), int)
+    }
+    contexts: dict[int, WorldAtlasRoomContext] = {}
+    conflicts: set[int] = set()
+    for event in events:
+        if event.kind != "position" or event.trace_id is None:
+            continue
+        observed = room_numbers.get(event.trace_id)
+        if observed is None:
+            continue
+        location = atlas.locate(observed.payload["number"])
+        if location is None:
+            continue
+        _record_atlas_context(
+            contexts,
+            conflicts,
+            event.payload.get("place"),
+            location,
+            [],
+            [f"gateway observer room number seq {observed.seq}"],
+        )
+    return contexts
+
+
+def _observer_current_world(
+    world: WorldProjection,
+    events: list[Event],
+    atlas: AtlasSource | None,
+    contexts: dict[int, WorldAtlasRoomContext],
+) -> WorldProjection:
+    """Keep the current marker on the observer's latest verified vnum."""
+
+    if atlas is None or not atlas.available:
+        return world
+    observed = next(
+        (
+            event
+            for event in reversed(events)
+            if event.kind == "room_number"
+            and isinstance(event.payload.get("number"), int)
+        ),
+        None,
+    )
+    if observed is None:
+        return world
+    location = atlas.locate(observed.payload["number"])
+    if location is None:
+        return world
+    matched = next(
+        (
+            node
+            for node in world.nodes
+            if node.atlas is not None
+            and node.atlas.vnum == location.room.vnum
+        ),
+        None,
+    )
+    nodes = tuple(
+        node.model_copy(
+            update={"state": "current" if node is matched else "observed"}
+        )
+        for node in world.nodes
+    )
+    if matched is None:
+        place = -location.room.vnum
+        context = WorldAtlasRoomContext(
+            vnum=location.room.vnum,
+            zone_id=location.room.zone,
+            zone_label=location.zone_label,
+            sector=location.room.sector,
+            atlas_digest=location.source_digest,
+            confidence="high",
+            evidence=(f"gateway observer room number seq {observed.seq}",),
+        )
+        contexts[place] = context
+        nodes += (
+            WorldNode(
+                id=f"observer:{location.room.vnum}",
+                place=place,
+                title=location.room.title,
+                atlas=context,
+                exits=tuple(location.room.exits),
+                visits=0,
+                evidence=(observed.seq,),
+                first_seq=observed.seq,
+                last_seq=observed.seq,
+                state="current",
+                confidence="confirmed",
+                method="observer-vnum",
+            ),
+        )
+    return world.model_copy(
+        update={
+            "nodes": nodes,
+            "current_title": location.room.title,
+            "current_confidence": "confirmed",
+            "candidates": (),
+            "candidate_details": (),
+        }
     )
 
 
@@ -1012,7 +1191,7 @@ def _combat_episode(
 
         text = _text(event.payload.get("text")) or ""
         observation_kind = event.payload.get("kind")
-        if observation_kind == "combat":
+        if observation_kind == "combat" and _COMBAT_EXCHANGE.search(text):
             command = (
                 command_by_trace.get(event.trace_id)
                 if event.trace_id is not None
@@ -1093,7 +1272,7 @@ def _combat_episode(
 
         if episode is None or not episode["active"] or not text:
             continue
-        if observation_kind == "death" or _PLAYER_DEFEAT.search(text):
+        if _PLAYER_DEFEAT.search(text):
             _end_combat(episode, "defeated", event.seq)
         elif _PLAYER_FLED.search(text) or _MOB_FLED.search(text):
             _end_combat(episode, "fled", event.seq)

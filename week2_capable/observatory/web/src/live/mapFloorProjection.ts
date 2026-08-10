@@ -97,6 +97,42 @@ export function projectMapFloorFeatures({
 
 type StairSeed = Omit<MapStair, "disc">;
 
+/**
+ * Put a transient cross-map portal where the existing stair placement would
+ * put one, so the transition avoids rooms and links without pretending the
+ * boundary is an up or down exit.
+ */
+export function placeMapTransitionPortal({
+  at,
+  gameLinks,
+  id,
+  layout,
+  rooms,
+  source,
+  arrival,
+}: {
+  at: MapPoint;
+  gameLinks: MapGhostLink[];
+  id: string;
+  layout: RoomLayout;
+  rooms: MapRoom[];
+  source: string;
+  arrival: boolean;
+}): MapPoint {
+  return placeStairs([{
+    id,
+    source,
+    way: arrival ? "up" : "down",
+    at,
+    targetVnum: null,
+    targetFloor: null,
+    opened: true,
+    dim: false,
+    arrival,
+    barred: false,
+  }], rooms, gameLinks, layout)[0]?.disc ?? at;
+}
+
 function projectStairSeeds(
   edges: CanonicalEdge[],
   nodes: ReadonlyMap<string, WorldNode>,
