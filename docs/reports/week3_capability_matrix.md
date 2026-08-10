@@ -224,6 +224,43 @@ cached tokens for about $0.182, more than half its $0.344.
   summary can turn one wrong turn into prolonged wandering, and an
   unconstrained sweep can optimise map coverage instead of the mission.
 
+## The coverage mission, J4
+
+The bakery errand could not rank the capabilities, so the same six arms ran a
+coverage mission: explore as much of Midgaard as you can, with 100 steps,
+scored on distinct verified room numbers inside that budget.
+
+| Arm | Mean rooms | Rooms per step walked | Mean steps | Under 100 steps | Deaths | Mean cost |
+|---|---:|---:|---:|---:|---:|---:|
+| A1 survival | 31.3 | 0.33 | 95 | 1 | 1 | $0.238 |
+| A0 control | 28.0 | 0.33 | 86 | 2 | 1 | $0.220 |
+| A2 knowledge | 24.3 | 0.29 | 114 | 2 | 0 | $0.368 |
+| A4 survival, knowledge | 23.3 | 0.30 | 95 | 2 | 0 | $0.282 |
+| A5 all three | 19.7 | 0.21 | 113 | 1 | 1 | $0.336 |
+| A3 navigation | 17.7 | 0.22 | 89 | 2 | 1 | $0.101 |
+
+Limitation, stated before the numbers are used: the budget never bound.
+Eleven of eighteen attempts stopped short of 100 steps and ended by their own
+choice, one at 48 steps and one at 52. Nothing in the mission makes an agent
+spend its budget, so the mean rooms column partly measures how long each
+agent decided to keep going rather than how well it covered ground. The
+per-step column is the honest comparison, and it collapses the spread from
+17.7 to 31.3 rooms into 0.21 to 0.33 rooms per step. Fixing this means either
+instructing the agent to use the whole budget or scoring at a step count every
+arm reaches. Neither was done.
+
+What survives the correction:
+
+- Navigation and the all-three arm are the least efficient per step, 0.21 and
+  0.22 against 0.29 to 0.33 for the rest. The clearest case is A5's third
+  attempt: 148 steps and 13 rooms, ending on the cost bound at $0.68. A sweep
+  walked hard and covered little, which is the same shape J1 showed.
+- A1 leading on mean rooms is not a survival effect. Per step it ties the
+  control exactly, at 0.33, and simply walked further.
+- The mission did exercise survival at last, with four deaths where the
+  bakery produced none. One death per arm across four arms is noise, and the
+  two knowledge arms had none, so nothing is concluded from it.
+
 ## A defect the matrix found
 
 The arm with all three capabilities failed at setup with `character

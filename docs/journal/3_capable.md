@@ -697,6 +697,48 @@ anything which helps a lost agent looks like pure overhead to one that is not
 lost. The measurements are in
 [the capability matrix report](../reports/week3_capability_matrix.md).
 
+### 17. The week we built more knowledge, and the week nothing needed it
+
+The mission this week exists to solve was solved once already, in week 0,
+before any of this machinery was written. That run found the monster and
+killed it. Setting the two side by side is the most useful thing the
+measurements produced, because the difference is not how much the agent knew.
+
+The early version kept two memory files and gave the model a way to search
+them, a plan with steps the code could check for itself (be level seven, be
+carrying a light), and a short list of recent events. When the model wanted
+something it asked for it. Everything else stayed out of the way.
+
+The version we built this week pushes a summary of the situation in front of
+the model before every decision and keeps the entire conversation besides. In
+the runs measured here, nothing was ever compacted, so a room description read
+on the fourth decision was still being resent on the hundredth. Two thirds of
+what the model was reading by the end was old ground and its own earlier
+remarks.
+
+That is the finding, and it is not what we expected to find. We spent the week
+adding information on the assumption that the agent failed for want of it. The
+transcripts say it failed for want of attention. On the errand, an agent given
+the summary walked four times as far as one given nothing and did worse, and
+the one line it kept answering was a count of unexplored exits that grows all
+run and never finishes. On the coverage mission, the arm with every capability
+enabled covered the least ground per step of any arm.
+
+Two qualifications keep this honest. The early success was not a cold start:
+the character was already level seven with a map of 163 rooms, it had died
+twice getting there, and the location of the target was supplied by a human
+rather than discovered. So it shows that the model can prepare, travel and
+fight when the few facts that matter are in front of it. It does not show that
+it can find the target alone.
+
+The lesson we would act on with more time is to stop measuring how much the
+agent is told and start measuring how much of what it is told bears on the
+next decision. A working set of a dozen lines, the mission, the phase, what
+would end the phase, where the agent is, what it just did and what came of it,
+with everything else available on request. The measurements in
+[the capability matrix report](../reports/week3_capability_matrix.md) are what
+turned that from an opinion into a conclusion.
+
 ## Technical Conclusions
 
 - Repeated identical attempts did fail in a stable pattern, and that
