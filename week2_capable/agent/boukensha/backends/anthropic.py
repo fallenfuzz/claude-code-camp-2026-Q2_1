@@ -39,15 +39,19 @@ class Anthropic(Backend):
             "max_tokens": max_output_tokens,
             "messages": self._messages(context),
         }
-        # Automatic prompt caching: one top-level field, and the provider places
-        # the breakpoint at the last cacheable block and moves it forward as the
-        # conversation grows. Preferred over hand-placed breakpoints because the
-        # stable prefix here (system prompt plus tool schemas) is followed by a
-        # history that grows every turn, which is exactly what it manages.
+        # Explicit cache breakpoints, not the automatic one. Automatic places
+        # the breakpoint on the last block, and the last block here is the
+        # state message, which is rewritten for every call. The documented
+        # result is a fresh cache write each time and never a read, which is
+        # what the bill showed. The breakpoints therefore sit on the system
+        # prompt and on the last message that later calls will still share.
         # https://platform.claude.com/docs/en/build-with-claude/prompt-caching
-        body["cache_control"] = {"type": "ephemeral"}
         if context.system:
-            body["system"] = context.system
+            body["system"] = [{
+                "type": "text",
+                "text": context.system,
+                "cache_control": {"type": "ephemeral"},
+            }]
         if tools:
             body["tools"] = [self._tool(t) for t in tools]
         if thinking is not None and self.thinking_mode:
@@ -136,7 +140,8 @@ class Anthropic(Backend):
 
     def _messages(self, context: Context) -> list[dict[str, Any]]:
         wire = []
-        for message in context.messages:
+        stable = self._last_stable(context)
+        for index, message in enumerate(context.messages):
             if message.role is Role.TOOL_RESULT:
                 wire.append({
                     "role": "user",
@@ -155,7 +160,23 @@ class Anthropic(Backend):
                     "role": message.role.value,
                     "content": [self._block(b) for b in message.content],
                 })
+            if index == stable and wire[-1]["content"]:
+                wire[-1]["content"][-1]["cache_control"] = {
+                    "type": "ephemeral",
+                }
         return wire
+
+    @staticmethod
+    def _last_stable(context: Context) -> int:
+        """The last message every later request will still carry.
+
+        Everything up to it is one prefix that repeats, which is the only
+        thing worth a cache breakpoint.
+        """
+        for index in range(len(context.messages) - 1, -1, -1):
+            if not getattr(context.messages[index], "volatile", False):
+                return index
+        return -1
 
     @staticmethod
     def _block(block: Any) -> dict[str, Any]:

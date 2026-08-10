@@ -130,6 +130,10 @@ class Message:
 
     role: Role
     content: tuple[Block, ...] = field(default=())
+    #: Re-rendered for one call and dropped afterwards, so no later request
+    #: shares it. A provider cache breakpoint must never land on one: the
+    #: prefix would differ every call, paying a fresh write and never a read.
+    volatile: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "content", self._normalize(self.content))
@@ -198,8 +202,8 @@ class Message:
     # -- convenience constructors -----------------------------------------
 
     @classmethod
-    def user(cls, text: str) -> Message:
-        return cls(Role.USER, text)
+    def user(cls, text: str, *, volatile: bool = False) -> Message:
+        return cls(Role.USER, text, volatile=volatile)
 
     @classmethod
     def assistant(cls, content: Any) -> Message:

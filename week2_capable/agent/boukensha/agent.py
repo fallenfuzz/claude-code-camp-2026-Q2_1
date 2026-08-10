@@ -434,7 +434,7 @@ class Agent:
             return None
         joined = "\n".join(parts)
         self._logger.state_block(joined)
-        return Message.user(f"[state]\n{joined}")
+        return Message.user(f"[state]\n{joined}", volatile=True)
 
     def _call_opts(self) -> dict[str, Any]:
         """Per-call options shared by every work-iteration model round trip.

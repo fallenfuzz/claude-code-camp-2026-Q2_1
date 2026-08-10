@@ -103,3 +103,37 @@ class TestCacheDirective(unittest.TestCase):
                     continue
                 body = backend.build_request(Context("system prompt"))
                 self.assertIsNone(body.get("cache_control"))
+
+
+class TestBreakpointPlacement(unittest.TestCase):
+    """The state block is rewritten for every call, so a breakpoint on it
+    buys a cache write each time and never a read. One run wrote 395,596
+    tokens of cache and read none."""
+
+    def _body(self):
+        from boukensha.message import Message
+        context = Context("system prompt")
+        context.messages.append(Message.user("what do you see"))
+        context.messages.append(Message.user("[state]\nhp 14", volatile=True))
+        return backend_for("anthropic", "claude-haiku-4-5").build_request(
+            context
+        )
+
+    def test_the_breakpoint_stops_before_the_state_block(self):
+        messages = self._body()["messages"]
+        marked = [
+            index for index, message in enumerate(messages)
+            for block in message["content"]
+            if "cache_control" in block
+        ]
+        self.assertEqual([0], marked, messages)
+
+    def test_the_system_prompt_is_cached_too(self):
+        system = self._body()["system"]
+        self.assertEqual(
+            {"type": "ephemeral"}, system[0]["cache_control"], system
+        )
+
+    def test_the_automatic_breakpoint_is_not_used(self):
+        # It lands on the last block, which is the one that always changes.
+        self.assertIsNone(self._body().get("cache_control"))
