@@ -50,9 +50,10 @@ CLAUDE.md
 reworks_report.md
 feedback_rework.md
 
-# The demo video lives on YouTube. GitHub does not render a committed mp4
+# Demo videos live on YouTube. GitHub does not render a committed mp4
 # inline, only the gif, so the bytes would buy a link and nothing else.
-week1_baseline/log_viewer/docs/demo.mp4
+*.mp4
+*.mov
 
 # Agent skill definitions live outside the graded tree
 .agents/
