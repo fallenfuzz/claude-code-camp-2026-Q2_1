@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from pathlib import Path
 
@@ -30,13 +31,24 @@ class _Reply:
 
 class _Session:
     def __init__(self, score_moves: list[int], toggles: str = "",
-                 wimpy_ok: bool = True) -> None:
+                 wimpy_ok: bool = True,
+                 toggle_failures: set[str] | None = None) -> None:
         self.wimpy_ok = wimpy_ok
         self.id = "fake"
         self.journal = _Journal()
         self.commands: list[str] = []
         self.score_moves = list(score_moves)
-        self.toggles = toggles
+        self.toggle_failures = {
+            name.casefold() for name in (toggle_failures or set())
+        }
+        self.toggle_states: dict[str, bool] = {}
+        self.toggle_labels: dict[str, str] = {}
+        for match in re.finditer(
+            r"([A-Za-z]+):\s*(ON|OFF)\b", toggles, re.I,
+        ):
+            key = match.group(1).casefold()
+            self.toggle_labels[key] = match.group(1)
+            self.toggle_states[key] = match.group(2).casefold() == "on"
 
     async def command(self, line: str, trace_id=None) -> _Reply:
         self.commands.append(line)
@@ -50,7 +62,14 @@ class _Session:
                 "You can't set your wimp level above half your hit points."
             ))
         if line == "toggle":
-            return _Reply(text=self.toggles)
+            return _Reply(text="  ".join(
+                f"{self.toggle_labels[name]}: "
+                f"{'ON' if state else 'OFF'}"
+                for name, state in self.toggle_states.items()
+            ))
+        key = line.casefold()
+        if key in self.toggle_states and key not in self.toggle_failures:
+            self.toggle_states[key] = not self.toggle_states[key]
         return _Reply()
 
 
@@ -151,8 +170,35 @@ def test_the_toggles_are_settings(tmp_path: Path) -> None:
 
     asyncio.run(survival.let_the_game_do_the_work())
 
-    assert session.commands == ["toggle", "autoloot"]
+    assert session.commands == ["toggle", "autoloot", "toggle"]
     store.close()
+
+
+def test_autosac_requires_confirmed_autoloot(tmp_path: Path) -> None:
+    session = _Session(
+        [],
+        toggles="AutoLoot: OFF  AutoSac: OFF",
+        toggle_failures={"autoloot"},
+    )
+    store = _store_with_maxima(tmp_path)
+    survival = Survival(
+        session,
+        store,
+        {"game_toggles": ("autoloot", "autosac")},
+    )
+
+    applied = asyncio.run(survival.let_the_game_do_the_work())
+    store.close()
+
+    assert applied == ()
+    assert session.commands == ["toggle", "autoloot", "toggle"]
+    events = [payload for _, payload in session.journal.events]
+    assert {
+        "rule": "game-settings",
+        "version": "survival-1",
+        "skipped": "autosac",
+        "reason": "autoloot_not_confirmed",
+    } in events
 
 
 def test_something_already_on_is_left_alone(tmp_path: Path) -> None:

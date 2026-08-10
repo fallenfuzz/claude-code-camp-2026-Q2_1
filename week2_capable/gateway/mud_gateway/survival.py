@@ -96,10 +96,12 @@ class Survival:
         was already on. The game lists them when asked, so what is already
         set is read first and only what is missing is changed.
         """
-        current = await self._toggle_states()
+        initial = await self._toggle_states()
+        current = dict(initial)
         changed = []
         for name in self.game_toggles:
-            state = current.get(name.casefold())
+            key = name.casefold()
+            state = current.get(key)
             if state is True:
                 continue
             if state is None:
@@ -107,12 +109,25 @@ class Survival:
                 # thing off. Left alone and recorded.
                 self._journal("game-settings", {"unknown": name})
                 continue
+            if key == "autosac" and current.get("autoloot") is not True:
+                self._journal(
+                    "game-settings",
+                    {"skipped": name, "reason": "autoloot_not_confirmed"},
+                )
+                continue
             await self.session.command(name)
-            changed.append(name)
+            current = await self._toggle_states()
+            if current.get(key) is True:
+                changed.append(name)
+            else:
+                self._journal(
+                    "game-settings",
+                    {"failed": name, "reason": "not_confirmed_on"},
+                )
         self._journal(
             "game-settings", {"turned_on": changed, "already_on": [
                 name for name in self.game_toggles
-                if current.get(name.casefold()) is True
+                if initial.get(name.casefold()) is True
             ]},
         )
         return tuple(changed)
