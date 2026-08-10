@@ -357,6 +357,18 @@ class RunSummary(BaseModel):
     iterations: int
     cost_usd: float
     result_mode: str
+    #: The batch the attempt belongs to, which is how one experiment arm is
+    #: told from another. Every arm runs the same journey, so the journey
+    #: alone names none of them.
+    arm: str = ""
+    #: The exact capability set the attempt ran with, so two arms that were
+    #: meant to differ can be proven to have differed. The digest is the tool
+    #: surface and is the same for every arm, so the names carry the proof.
+    capability_digest: str = ""
+    capabilities: tuple[str, ...] = ()
+    #: Whether the ledger recorded a capability set at all. An attempt from
+    #: before the field existed is unknown, which is not the same as none.
+    capabilities_recorded: bool = False
 
 
 class EvidenceCitation(BaseModel):

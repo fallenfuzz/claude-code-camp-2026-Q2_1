@@ -128,6 +128,12 @@ export type SessionRun = {
   iterations: number;
   cost_usd: number;
   result_mode: string;
+  /** The batch the attempt ran in, which is how experiment arms are told apart. */
+  arm?: string;
+  capability_digest?: string;
+  capabilities?: string[];
+  /** False when the ledger predates the field, which is not the same as none. */
+  capabilities_recorded?: boolean;
   lifecycle?: string;
   capture_status?: string;
   created_at?: string;

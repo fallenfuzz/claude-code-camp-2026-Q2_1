@@ -337,3 +337,66 @@ async def test_recorded_session_routes_name_the_experiment_relationship(
         "gateway:3",
         "gateway:4",
     ]
+
+
+def test_an_attempt_names_the_arm_it_ran_in(tmp_path) -> None:
+    """Every arm of an experiment runs one journey in one mode, so neither
+    tells two arms apart. The batch directory is what does."""
+    from backend.sources.benchmark import BenchmarkSource
+
+    for arm, digest, capabilities in (
+        ("cap-a0-control", "same-surface", []),
+        ("cap-a4-survival-knowledge", "same-surface", ["knowledge", "survival"]),
+    ):
+        ledger = tmp_path / arm
+        ledger.mkdir()
+        (ledger / "attempts.jsonl").write_text(json.dumps({
+            "attempt_id": f"{arm}-01",
+            "journey_id": "J1",
+            "result_mode": "full",
+            "capability_digest": digest,
+            "capabilities": capabilities,
+            "success": False,
+            "stop_reason": "max_cost",
+            "iterations": 12,
+            "cost_usd": 0.21,
+        }) + "\n", encoding="utf-8")
+
+    runs = {run.arm: run for run in BenchmarkSource(tmp_path).runs()}
+
+    assert set(runs) == {"cap-a0-control", "cap-a4-survival-knowledge"}
+    control, arm = runs["cap-a0-control"], runs["cap-a4-survival-knowledge"]
+
+    assert arm.capabilities == ("knowledge", "survival")
+    assert control.capabilities == ()
+    assert control.capability_digest == arm.capability_digest, (
+        "the digest is the tool surface and cannot tell two arms apart"
+    )
+    assert "knowledge+survival" in arm.label
+    assert "no capabilities" in control.label
+    assert len({run.label for run in runs.values()}) == 2
+
+
+def test_an_attempt_from_before_the_field_says_unknown(tmp_path) -> None:
+    """A ledger written before capabilities were recorded proves nothing
+    about what ran. Reading absence as an empty set would turn every
+    historical attempt into a control it was never shown to be."""
+    from backend.sources.benchmark import BenchmarkSource
+
+    ledger = tmp_path / "capable_batch"
+    ledger.mkdir()
+    (ledger / "attempts.jsonl").write_text(json.dumps({
+        "attempt_id": "20260806T100849Z-11",
+        "journey_id": "J3",
+        "result_mode": "full",
+        "success": False,
+        "stop_reason": "max_cost",
+        "iterations": 30,
+        "cost_usd": 0.22,
+    }) + "\n", encoding="utf-8")
+
+    run = BenchmarkSource(tmp_path).runs()[0]
+
+    assert run.capabilities_recorded is False
+    assert "capabilities unknown" in run.label
+    assert "no capabilities" not in run.label

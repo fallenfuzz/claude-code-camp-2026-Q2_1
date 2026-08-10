@@ -88,9 +88,31 @@ def _summary(ledger_name: str, record: dict[str, Any]) -> RunSummary:
     stable = stable_run_id(ledger_name, attempt)
     journey = str(record.get("journey_id", "unknown"))
     mode = str(record.get("result_mode", "unknown"))
+    digest = str(record.get("capability_digest", "") or "")
+    # A row written before the ledger carried this field says nothing about
+    # what it ran with. Reading absence as an empty set would turn every
+    # historical attempt into a capability-free control it was never proven
+    # to be.
+    recorded = record.get("capabilities")
+    enabled = (
+        None if recorded is None
+        else tuple(str(name) for name in recorded)
+    )
+    ran_with = (
+        "capabilities unknown" if enabled is None
+        else "+".join(enabled) if enabled
+        else "no capabilities"
+    )
+    # The arm carries the label instead of the result mode. Every arm of an
+    # experiment runs one journey in one mode, so those two named nothing
+    # and the batch it came from is the only thing that tells them apart.
     return RunSummary(
         id=stable,
-        label=f"{journey} · {mode} · {attempt}",
+        label=f"{journey} · {ledger_name} · {ran_with} · {attempt}",
+        arm=ledger_name,
+        capability_digest=digest,
+        capabilities=enabled or (),
+        capabilities_recorded=enabled is not None,
         journey=journey,
         attempt=attempt,
         success=bool(record.get("success", False)),
