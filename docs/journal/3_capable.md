@@ -651,11 +651,26 @@ half times as much, and was the only arm that failed an attempt at all,
 running to its money ceiling after 103 calls. Adding route planning on top
 made it worse again, at 51.3.
 
-The summary was built for the opposite problem. The runs it was designed
-against burned 86 calls per attempt wandering, and it cut that by telling the
-agent where it was and what it had already seen. On a short errand inside the
-city there is nothing to lose track of, so the same text is a bill with
-nothing to pay for it. Survival came out best on paper at 15.3 calls, but the
+Reading the transcripts showed why, and it was not the price of the text.
+The summary ends with a line counting how much of the map is known and how
+many ways out have not been walked. That count grew for the whole run: one
+room and one unwalked way at the start, then ten and eight, then forty and
+thirty two, finishing at fifty five rooms with thirty four ways still open.
+Every room entered opened more doors than it closed, so the only line
+reporting progress never came close to finished and always asked for more
+walking.
+
+The agent answered it, once per turn, in its own words: "Thank you for the
+state update. I'm on Elm Street with 56 movement points and 28 unexplored
+exits across 34 rooms." Ninety three percent of everything it did was
+walking. The errand had quietly become covering the map.
+
+The run without the summary took eight calls, and did it by reading what the
+game itself wrote on the walls: "I can see there's a market square to the
+south. The bakery might be there", and two rooms later, "The description says
+the bakery is to the north." The game signposts its own world. Our summary
+listed the exits as walked or unwalked and dropped what the room actually
+said, so we replaced the game's directions with a progress bar. Survival came out best on paper at 15.3 calls, but the
 per-attempt spread overlapped the control completely and nothing died in any
 arm, so the reflex it exists for never fired. At three attempts that is an
 observation and not a result.

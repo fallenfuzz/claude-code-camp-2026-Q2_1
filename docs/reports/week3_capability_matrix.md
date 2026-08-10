@@ -80,6 +80,49 @@ wandering. Knowledge and navigation were built for that harder problem, and on
 a short errand inside the city the extra state text is overhead with nothing
 to pay for it.
 
+## Why the knowledge arms lost
+
+The aggregate says knowledge costs more. The transcripts say what it spent
+the money on.
+
+| Arm | Calls | Moves | Rooms found | Rooms per call | Revisits |
+|---|---:|---:|---:|---:|---:|
+| A0 control | 50 | 38 | 23 | 0.46 | 29 |
+| A1 survival | 46 | 34 | 22 | 0.48 | 27 |
+| A3 navigation | 54 | 42 | 24 | 0.44 | 33 |
+| A4 survival, knowledge | 71 | 58 | 38 | 0.54 | 32 |
+| A2 knowledge | 180 | 167 | 66 | 0.37 | 107 |
+| A5 all three | 154 | 123 | 116 | 0.75 | 124 |
+
+The knowledge arm spent 167 of its 180 calls moving, 93% of everything it
+did, against the control's 38 of 50. It also has the worst discovery rate and
+by far the most revisits.
+
+The state block's map line grows for the whole run. Sampled across the
+103-call attempt it reads 1 room and 1 unwalked way, then 10 and 8, 23 and
+17, 40 and 32, and finishes at 55 rooms with 34 unwalked ways. Every room
+entered opened more doors than it closed, so the one line reporting progress
+never approached zero and always asked for more walking.
+
+The agent answered it. Its own words, once per turn: "Thank you for the state
+update. I'm on Elm Street with 56 movement points and 28 unexplored exits
+across 34 rooms." Then the next room, then 29 across 35, then 33 across 54.
+The mission became covering the map.
+
+The control never had that line, and solved the mission in eight calls by
+reading the game's prose: "Good, I can see there's a market square to the
+south. The bakery might be there", and two rooms later, "The description says
+the bakery is to the north. Let me go there." The game signposts its own
+world, and the summary we substituted lists exits as walked or unwalked
+without carrying what the room actually said.
+
+Finding: the state block displaced the game's own signposting with a coverage
+metric, and the agent optimized the metric it was given. Adding navigation on
+top does not fix the framing, it makes the wrong thing efficient: A5 has the
+best discovery rate in the matrix at 0.75 rooms per call and found 116 rooms,
+five times the control, while taking three times as many calls to do the same
+errand.
+
 ## Caveats
 
 - Three attempts per arm screens large differences and cannot establish a
