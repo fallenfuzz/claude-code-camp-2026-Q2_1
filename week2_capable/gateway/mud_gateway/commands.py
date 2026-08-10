@@ -579,15 +579,32 @@ def _render(capability: Capability, values: dict[str, Any]) -> str:
     if renderer == "channel":
         return f"{values['channel']} {values['text']}"
     if renderer == "get":
-        return _parts("get", values.get("count"), values["item"], values.get("container"))
+        return _parts(
+            "get",
+            values.get("count"),
+            _keyword("item", values["item"]),
+            _keyword("container", values["container"])
+            if values.get("container") else None,
+        )
     if renderer == "drop":
-        return _parts(values["mode"], values.get("count"), values["item"])
+        return _parts(
+            values["mode"], values.get("count"),
+            _keyword("item", values["item"]),
+        )
     if renderer == "put":
-        return _parts("put", values.get("count"), values["item"], values["container"])
+        return _parts(
+            "put", values.get("count"),
+            _keyword("item", values["item"]),
+            _keyword("container", values["container"]),
+        )
     if renderer == "equip":
-        return _parts(values["action"], values["item"], values.get("body_loc"))
+        return _parts(
+            values["action"],
+            _keyword("item", values["item"]),
+            values.get("body_loc"),
+        )
     if renderer == "consume":
-        return f"{values['mode']} {values['item']}"
+        return f"{values['mode']} {_keyword('item', values['item'])}"
     if renderer == "cast":
         return _parts("cast", f"'{values['spell']}'", values.get("target"))
     if renderer == "magic_item":
@@ -601,6 +618,34 @@ def _render(capability: Capability, values: dict[str, Any]) -> str:
 
 def _parts(*parts: object) -> str:
     return " ".join(str(part) for part in parts if part not in (None, ""))
+
+
+#: Words that carry no keyword on their own, so a suggestion never lands
+#: on one of them.
+_FILLER = frozenset({"a", "an", "the", "of", "some"})
+
+
+def _keyword(name: str, value: object) -> str:
+    """One word naming an object, which is all the game will match.
+
+    Object commands read as ``get <object> <container>``, so a phrase is
+    not a longer name: its second word becomes a container. "corpse of
+    the beastly fido" asks for a corpse inside something called "of", and
+    the game answers about a container nobody mentioned. Rejecting it
+    names the word that would work, which the model can act on. Guessing
+    on its behalf would hide that its own argument was never sent.
+    """
+    text = str(value).strip()
+    words = text.split()
+    if len(words) <= 1:
+        return text
+    carrying = [word for word in words if word.lower() not in _FILLER]
+    suggestion = (carrying or words)[-1]
+    raise ValueError(
+        f'{name} takes one keyword, not "{text}". The game matches an '
+        f'object by a single one of its keywords, so send '
+        f'{name}="{suggestion}".'
+    )
 
 
 def _is_mortal(line: str) -> bool:

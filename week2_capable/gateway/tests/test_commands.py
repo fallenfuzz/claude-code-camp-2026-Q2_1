@@ -237,3 +237,21 @@ class TestTypedExecution:
 
         assert result.code == code
         assert result.message == str(error)
+
+
+def test_a_phrase_names_no_object_and_says_which_word_does() -> None:
+    """The corpse loop. "get corpse of the beastly fido" reads as taking a
+    corpse out of a container called "of", so nine of one run's fifteen
+    attempts drew "You don't have an of." and the agent never learned
+    why. The other six were well formed and failed because no corpse was
+    there, which this does not address."""
+    with pytest.raises(ValueError) as raised:
+        build("get_item", {"item": "corpse of the beastly fido"})
+
+    message = str(raised.value)
+    assert "one keyword" in message
+    assert 'item="fido"' in message, "the message names the word that works"
+
+
+def test_one_keyword_still_renders() -> None:
+    assert build("get_item", {"item": "corpse"}) == "get corpse"
