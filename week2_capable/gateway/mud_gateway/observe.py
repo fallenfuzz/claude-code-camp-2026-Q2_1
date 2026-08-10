@@ -13,7 +13,6 @@ SGR = re.compile(r"\x1b\[([0-9;]*)m")
 TITLE_COLOUR = "0;33"
 EXITS_COLOUR = "0;36"
 OBJECT_COLOUR = "0;32"
-DANGER_COLOUR = "0;31"
 
 EXITS_LINE = re.compile(r"^\[?\s*(Obvious exits|Exits):", re.I)
 # One way out and the room it opens on, as the exits listing prints it.
@@ -51,15 +50,17 @@ ADVISORY_LINE = re.compile(
     r"this zone is above your recommended level|better be careful", re.I
 )
 DARK_LINE = re.compile(r"it is pitch black|you can't see a thing", re.I)
-DEATH_LINE = re.compile(r"you are dead|you have been killed|R\.I\.P", re.I)
+DEATH_LINE = re.compile(r"you are dead|you have been killed", re.I)
 DOOR_LINE = re.compile(
     r"seems to be closed|is closed\.|is now closed|is locked|"
     r"you (open|close|unlock|lock) the",
     re.I,
 )
 COMBAT_LINE = re.compile(
-    r"\b(hits?|misses|slash(es)?|pierce[sd]?|crush(es)?|bites?|claws?|"
-    r"attacks?|parr(y|ies)|dodge[sd]?|punch(es)?|kicks?)\b",
+    r"^(?:You\b.*\b(?:hit|miss|slash|pierce|crush|bite|claw|attack|parry|"
+    r"dodge|punch|kick|swing|lunge|tickle)\w*\b|"
+    r"(?:The|A|An)\b.*\b(?:hit|miss|slash|pierce|crush|bite|claw|attack|"
+    r"parry|dodge|punch|kick|swing|lunge|tickle)\w*\b.*\byou\b)",
     re.I,
 )
 SPEECH_LINE = re.compile(
@@ -536,7 +537,7 @@ def parse(raw: bytes | str, wire_ref: WireReference) -> list[Observation]:
             add("furniture", line, Confidence.HIGH, "structure-shape")
             continue
 
-        if sgr == DANGER_COLOUR or COMBAT_LINE.search(line):
+        if COMBAT_LINE.search(line):
             add("combat", line, Confidence.MEDIUM, "combat-colour-or-verb")
             continue
 

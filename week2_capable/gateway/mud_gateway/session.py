@@ -444,41 +444,11 @@ class Session:
         line: str,
         parsed: tuple[Observation, ...],
     ) -> int | None:
-        """What the observer says this room is, or None when none watches.
-
-        Each ask costs two immortal round trips, so it is worth deciding.
-        The number in hand is reused only when the character cannot have
-        gone anywhere: no command that relocates, nothing arriving
-        unbidden, and a reply naming the room we are already holding or
-        naming no room at all.
-
-        Reading the reply rather than trusting the command is what catches
-        being moved without asking. Dying in a fight ends in the Temple,
-        and the command for that was an attack.
-
-        What arrives unbidden is judged the same way, by what it says. A
-        fight sends a line every round and moves nobody, so only the one
-        that names a different room is worth an immortal round trip.
-        """
+        """Return the observer's verified room number after every frame."""
         observer = self.observer
         if observer is None:
             return None
         self._reused = False
-        if self._room is None:
-            return await self._ask(observer)
-        first_word = line.casefold().split()[0:1]
-        if first_word and first_word[0] in RELOCATING:
-            return await self._ask(observer)
-        arrived = next(
-            (o for o in parsed if isinstance(o, RoomObservation)), None
-        )
-        if arrived is None:
-            self._reused = True
-            return self._room
-        here = getattr(self.observations.room, "title", None)
-        if here is not None and arrived.title == here:
-            self._reused = True
-            return self._room
         return await self._ask(observer)
 
     async def _ask(self, observer: Any) -> int | None:

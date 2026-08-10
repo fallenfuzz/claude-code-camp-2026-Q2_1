@@ -13,7 +13,10 @@ from .journeys import flatten_payload
 from .metrics import read_gateway, read_jsonl
 
 SIGNATURES: dict[str, re.Pattern[str]] = {
-    "death": re.compile(r"you are dead|r\.i\.p\.", re.IGNORECASE),
+    "death": re.compile(
+        r"\byou are dead\b|\byou have been killed\b",
+        re.IGNORECASE,
+    ),
     "exhaustion": re.compile(r"too exhausted", re.IGNORECASE),
     "darkness": re.compile(
         r"it is pitch black|too dark to tell", re.IGNORECASE
