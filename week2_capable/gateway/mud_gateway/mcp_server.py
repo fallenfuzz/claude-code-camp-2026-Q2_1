@@ -526,6 +526,9 @@ async def serve(
                 name=profile.character,
                 password=password,
                 creates=profile.creates,
+                # Kept beside the attempt's own configuration, so it lives
+                # exactly as long as the attempt does.
+                made_record=settings.config_dir / "made-character",
                 host=settings.host,
                 port=settings.port,
                 session_id=settings.gateway_session_id,

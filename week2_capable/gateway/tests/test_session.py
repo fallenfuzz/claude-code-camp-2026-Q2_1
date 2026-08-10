@@ -594,3 +594,42 @@ class TestMakingACharacter:
             await session.destroy()
 
         assert "not made here" in str(refused.value)
+
+    async def test_a_restart_enters_the_character_this_attempt_made(
+        self, journal, tmp_path,
+    ):
+        # The gateway can be replaced inside one attempt, and a restart
+        # forgets everything held in memory. Without the record the second
+        # process reads its own character as somebody else's.
+        record = tmp_path / "made-character"
+        first = Session(journal, name="Newone", password="password",
+                        creates=True, made_record=record)
+        first.transport = ScriptedTransport(
+            [GREETING, CONFIRM, NEW_PASSWORD, RETYPE, SEX, CLASS,
+             MOTD, MENU, PROMPT_BYTES]
+        )
+        await first.open()
+
+        restarted = Session(journal, name="Newone", password="password",
+                            creates=True, made_record=record)
+        restarted.transport = ScriptedTransport(
+            [GREETING, PASSWORD, MOTD, MENU, PROMPT_BYTES]
+        )
+        await restarted.open()
+
+        assert restarted.logged_in
+        assert record.read_text() == "Newone"
+
+    async def test_a_restart_still_refuses_a_character_it_did_not_make(
+        self, journal, tmp_path,
+    ):
+        record = tmp_path / "made-character"
+        record.write_text("Someoneelse")
+        session = Session(journal, name="Newone", password="password",
+                          creates=True, made_record=record)
+        session.transport = ScriptedTransport(
+            [GREETING, PASSWORD, MOTD, MENU, PROMPT_BYTES]
+        )
+
+        with pytest.raises(LoginFailed):
+            await session.open()

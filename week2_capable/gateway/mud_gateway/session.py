@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from pathlib import Path
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
@@ -143,6 +144,7 @@ class Session:
                  issuer: str = "gateway",
                  observes: bool = True,
                  creates: bool = False,
+                 made_record: Any = None,
                  knowledge: KnowledgeProjector | None = None) -> None:
         self.id = session_id or f"{name}-{uuid.uuid4().hex[:8]}"
         self.name = name
@@ -153,6 +155,11 @@ class Session:
         # whether the character is ours to delete.
         self._creates = creates
         self._created_here = False
+        # Where this attempt records the character it made. The gateway can
+        # be restarted inside one attempt, and a restart forgets everything
+        # held in memory, so without this the second process reads its own
+        # character as somebody else's and refuses to enter it.
+        self._made_record = None if made_record is None else Path(made_record)
         self.journal = journal
         self.transport = Transport(host=host, port=port, timeout=timeout,
                                   on_wire=self._journal_wire)
@@ -212,6 +219,13 @@ class Session:
                     f"a made name is letters only, got {self.name!r}"
                 )
             seen = await self._make_character()
+        elif self._creates and self._made_here():
+            # Made by this attempt, in a process that has since been
+            # replaced. The game knows the name because we are its author,
+            # so entering it is an ordinary login.
+            self._created_here = True
+            await self.transport.send(self._password, secret=True)
+            seen = await self.transport.read_until(PROMPT, quiet=1.5)
         elif self._creates and not self._created_here:
             # The game knows this name and this session did not make it, so
             # entering it would hand back a character carrying whatever the
@@ -241,6 +255,15 @@ class Session:
                             {"character": self.name, "reason": "no prompt"})
         raise LoginFailed(f"no prompt after login as {self.name!r}")
 
+    def _made_here(self) -> bool:
+        """Whether this attempt already made the character it is opening."""
+        if self._created_here:
+            return True
+        record = self._made_record
+        if record is None or not record.is_file():
+            return False
+        return record.read_text(encoding="utf-8").strip() == self.name
+
     async def _make_character(self) -> bytes:
         """Answer the game's questions for a name it has never seen.
 
@@ -258,6 +281,10 @@ class Session:
         await self.transport.read_until(CLASS_PROMPT, quiet=None)
         await self.transport.send(BIRTH_CLASS)
         self._created_here = True
+        if self._made_record is not None:
+            # Written before the game is entered, so a restart during entry
+            # still finds it.
+            self._made_record.write_text(self.name, encoding="utf-8")
         self.journal.append(self.id, "character_made",
                             {"character": self.name,
                              "sex": BIRTH_SEX, "class": BIRTH_CLASS})
