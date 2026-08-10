@@ -638,6 +638,37 @@ game's own files. Knowledge we cannot tie to a place in the world is
 knowledge the agent cannot route with, cannot return to, and cannot carry
 into the next run.
 
+### 16. The knowledge we added made the agent worse at an easy errand
+
+We turned the five capabilities into an experiment: six arms on one mission,
+three attempts each, every attempt playing a character the game had never
+seen so that nothing could carry over between them. The mission was to find
+the bakery and read its menu, judged from the game's own output.
+
+The agent with nothing switched on solved it in 16.7 model calls. The agent
+carrying the situation summary we built for it took 38.5, cost four and a
+half times as much, and was the only arm that failed an attempt at all,
+running to its money ceiling after 103 calls. Adding route planning on top
+made it worse again, at 51.3.
+
+The summary was built for the opposite problem. The runs it was designed
+against burned 86 calls per attempt wandering, and it cut that by telling the
+agent where it was and what it had already seen. On a short errand inside the
+city there is nothing to lose track of, so the same text is a bill with
+nothing to pay for it. Survival came out best on paper at 15.3 calls, but the
+per-attempt spread overlapped the control completely and nothing died in any
+arm, so the reflex it exists for never fired. At three attempts that is an
+observation and not a result.
+
+The lesson is about the shape of the evidence rather than the numbers. A
+capability is not good or bad on its own, it is good or bad for a problem,
+and we had been measuring ones built for a long hunt against an errand with
+none of the hunt's difficulty. The honest conclusion is not that the
+knowledge work is wrong. It is that this mission cannot rank it, and that
+anything which helps a lost agent looks like pure overhead to one that is not
+lost. The measurements are in
+[the capability matrix report](../reports/week3_capability_matrix.md).
+
 ## Technical Conclusions
 
 - Repeated identical attempts did fail in a stable pattern, and that
