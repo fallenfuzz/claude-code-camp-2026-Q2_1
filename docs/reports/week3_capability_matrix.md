@@ -123,7 +123,42 @@ best discovery rate in the matrix at 0.75 rooms per call and found 116 rooms,
 five times the control, while taking three times as many calls to do the same
 errand.
 
-## Caveats
+## What the request is made of, call after call
+
+Every call resends the whole conversation, so what accumulates in it is what
+the run pays for repeatedly. Measured on the largest attempt of each arm.
+
+| | A0 control, 28 calls | A2 knowledge, 103 calls |
+|---|---|---|
+| System and tool schemas, resent every call | 1,444 + 7,534 chars | 1,444 + 9,332 chars |
+| History, first request to last | 135 to 26,526 chars | 604 to 117,208 chars |
+| Game output | 56% | 36% |
+| Result envelope | 31% | 27% |
+| The agent's own prose | 13% | 37% |
+
+Almost none of it is duplication in the literal sense. Across the knowledge
+arm's 217 final blocks, exactly one was a verbatim repeat. The waste is in
+three other shapes.
+
+- The envelope around every result is a quarter of the history. A result is
+  sent as the full typed record, with tool, capability, family, command,
+  sequence and trace identifier around the game's text. The agent already
+  supports sending only the text, and the matrix did not use it: 21,065 of
+  the knowledge arm's 78,872 history characters were envelope.
+- The same places are described in full over and over. Of 112 results, 43
+  were distinct places and 69 re-described somewhere the agent had already
+  been. The Promenade and Park Road each arrived eleven times, complete with
+  their descriptions, and Emerald Avenue ten.
+- The agent's own prose is the largest single share at 37%, and most of it is
+  a per-turn acknowledgement of the state block rather than reasoning.
+
+Finding: the knowledge arm's cost is not the state block's own length, which
+is rewritten each call and never accumulates. It is that the arm walked four
+times as much, and every step added a room description and its envelope to a
+history resent on every subsequent call. Wandering is quadratic in cost, not
+linear.
+
+
 
 - Three attempts per arm screens large differences and cannot establish a
   success rate. The knowledge result is large enough to believe. The survival

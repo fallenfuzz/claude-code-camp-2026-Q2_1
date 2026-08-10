@@ -492,7 +492,7 @@ def test_a_setup_failure_is_excluded_from_every_outcome(
 
     row = next(l for l in report.splitlines() if "survival" in l)
     # One attempt counted, one success, one excluded.
-    assert row.endswith("| 1 | 1 | 20.0 | $0.100 | 0 | 0 | 1 |"), row
+    assert row.endswith("| 1 | 1 | 20.0 | 0.0 | $0.100 | 0 | 0 | 1 |"), row
     assert "excluded" in report
 
 

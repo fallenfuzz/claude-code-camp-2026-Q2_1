@@ -12,7 +12,7 @@ from typing import Any, Iterable, Mapping
 
 import yaml
 
-from .journeys import Journey, judge
+from .journeys import J4_MOVES, Journey, judge, rooms_within_moves
 
 
 LEGACY_WEEK1_TOTAL = 448
@@ -79,6 +79,10 @@ class AttemptMetrics:
     character_made: bool = False
     max_hit: int | None = None
     max_move: int | None = None
+    #: Distinct rooms reached inside the move budget. The count a coverage
+    #: mission is scored on, and a useful shape of any run: an attempt that
+    #: walks a great deal and sees little is going in circles.
+    rooms_explored: int = 0
 
     @property
     def aggregate_eligible(self) -> bool:
@@ -223,6 +227,7 @@ def measure_attempt(
         character_made=any(
             event.get("kind") == "character_made" for event in gateway
         ),
+        rooms_explored=len(rooms_within_moves(gateway, J4_MOVES)),
         max_hit=_starting_maxima(gateway)[0],
         max_move=_starting_maxima(gateway)[1],
         capability_digest=(

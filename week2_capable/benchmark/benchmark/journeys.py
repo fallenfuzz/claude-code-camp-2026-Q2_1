@@ -46,7 +46,23 @@ J3 = Journey(
     "Find the minotaur and kill it.",
     title="Kill the Massive Minotaur",
 )
-JOURNEYS = {journey.id: journey for journey in (J1, J2, J3)}
+J4 = Journey(
+    "J4",
+    "Explore as much of Midgaard as you can. You have 100 moves.",
+    title="Cover Midgaard in 100 moves",
+    clue="you start at the Temple, in the middle of the city",
+)
+JOURNEYS = {journey.id: journey for journey in (J1, J2, J3, J4)}
+
+#: The move budget J4 is scored over. Walking past it is not forbidden, it
+#: simply stops counting, so an arm that ignores the budget cannot buy a
+#: better score with money the others did not spend.
+J4_MOVES = 100
+
+#: What counts as covering the city. Midgaard has 58 rooms, and the control
+#: on the bakery errand reached eight per attempt in far fewer moves, so half
+#: the city inside the budget is reachable without being a formality.
+J4_ROOMS = 29
 
 _MENU_ROW = re.compile(r"^\s*\d+\)\s+.*(?:bread|danish|cake|pastry)", re.IGNORECASE)
 _BAKERY_GOOD = re.compile(r"\b(?:bread|danish|cake|pastry)\b", re.IGNORECASE)
@@ -57,9 +73,40 @@ _MINOTAUR_DEAD = re.compile(
 )
 
 
+def rooms_within_moves(
+    events: Iterable[Mapping[str, object]], budget: int
+) -> tuple[str, ...]:
+    """The distinct rooms reached before the move budget runs out.
+
+    Counted from the game's own room frames in the order they arrived, and
+    cut at the budget rather than at the end of the run, so two arms are
+    compared over the same walking and not the same spending.
+    """
+    seen: dict[str, None] = {}
+    moves = 0
+    for event in events:
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        if event.get("kind") == "tool_call" and payload.get("capability") == "move":
+            moves += 1
+            if moves > budget:
+                break
+        if event.get("kind") == "observation" and payload.get("kind") == "room":
+            title = str(payload.get("text") or "").strip()
+            if title:
+                seen.setdefault(title, None)
+    return tuple(seen)
+
+
 def judge(journey: Journey, events: Iterable[Mapping[str, object]]) -> Verdict:
     """Judge a journey from gateway evidence, never from the model's claim."""
     material = list(events)
+    if journey.id == "J4":
+        reached = rooms_within_moves(material, J4_MOVES)
+        return Verdict(len(reached) >= J4_ROOMS,
+                       (f"{len(reached)} rooms in {J4_MOVES} moves",
+                        *reached[:7]))
     if journey.id == "J2":
         evidence: list[str] = []
         for event in material:

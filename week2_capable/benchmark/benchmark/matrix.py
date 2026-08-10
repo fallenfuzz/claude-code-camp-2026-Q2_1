@@ -45,6 +45,7 @@ class Attempt:
     success: bool
     censored: bool
     calls: int
+    rooms: int
     cost: float | None
     deaths: int
     #: Whether the attempt is an outcome at all. A run that never got as far
@@ -112,10 +113,10 @@ def render(arms: Mapping[str, list[Attempt]]) -> str:
 
     lines.append(
         "| journey | capabilities | arms | attempts | successes | "
-        "mean calls | mean cost | deaths | censored | excluded |"
+        "mean calls | mean rooms | mean cost | deaths | censored | excluded |"
     )
     lines.append(
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     )
     for (journey, capabilities), every in sorted(
         grouped.items(), key=lambda item: (item[0][0], _label(item[0][1]))
@@ -134,6 +135,7 @@ def render(arms: Mapping[str, list[Attempt]]) -> str:
             f"| {len(attempts)} "
             f"| {sum(a.success for a in attempts)} "
             f"| {_mean(measured)} "
+            f"| {_mean([a.rooms for a in attempts])} "
             f"| {_mean(priced, money=True)} "
             f"| {sum(a.deaths for a in attempts)} "
             f"| {sum(a.censored for a in attempts)} "
@@ -179,6 +181,7 @@ def _attempt(arm: str, row: Mapping[str, Any]) -> Attempt:
         success=bool(row.get("success", False)),
         censored=str(row.get("stop_reason", "")).startswith(BOUNDED),
         calls=int(row.get("model_calls", 0) or 0),
+        rooms=int(row.get("rooms_explored", 0) or 0),
         cost=None if cost is None else float(cost),
         deaths=deaths,
         # The same rule the benchmark's own aggregate uses, so a row counts
