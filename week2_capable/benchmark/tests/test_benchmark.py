@@ -413,3 +413,222 @@ def test_overlay_applies_per_sample_iteration_and_spend_ceilings(
     assert "max_turn_cost: 0.42" in text
     assert "model: claude-haiku-4-5" in text
     assert "compaction_threshold: 0.72" in text
+
+
+def _ledger(root: Path, name: str, journey: str, capabilities, rows) -> Path:
+    directory = root / name
+    directory.mkdir()
+    lines = []
+    for index, row in enumerate(rows, start=1):
+        success, stop, calls, cost = row[:4]
+        status = row[4] if len(row) > 4 else "complete"
+        entry = {
+            "attempt_id": f"{name}-{index:02d}",
+            "journey_id": journey,
+            "status": status,
+            "success": success,
+            "stop_reason": stop,
+            "model_calls": calls,
+            "cost_usd": cost,
+        }
+        if capabilities is not None:
+            entry["capabilities"] = list(capabilities)
+        lines.append(json.dumps(entry))
+    (directory / "attempts.jsonl").write_text("\n".join(lines) + "\n")
+    return directory
+
+
+def test_the_matrix_compares_arms_a_single_report_cannot(tmp_path: Path) -> None:
+    """Each arm writes its own ledger and its own report, and neither says
+    anything about the others."""
+    from benchmark.matrix import read_arm, render
+
+    control = _ledger(tmp_path, "cap-a0", "J1", [],
+                      [(False, "max_turn_cost", 40, 0.30)])
+    armed = _ledger(tmp_path, "cap-a4", "J1", ["knowledge", "survival"],
+                    [(True, "journey-complete", 22, 0.11)])
+
+    report = render({"cap-a0": read_arm(control), "cap-a4": read_arm(armed)})
+
+    assert "| J1 | none | cap-a0 | 1 | 0 |" in report
+    assert "| J1 | knowledge+survival | cap-a4 | 1 | 1 |" in report
+    # The bounded attempt gives a floor, so it is never averaged as a result.
+    assert "| n/a |" in report
+    assert "/sessions?run=" in report
+
+
+def test_an_arm_that_gives_up_early_is_not_reported_as_efficient(
+    tmp_path: Path,
+) -> None:
+    """A short failure is not a cheap success. Averaging one into mean calls
+    would rank the arm that quit fastest as the most efficient."""
+    from benchmark.matrix import read_arm, render
+
+    quitter = _ledger(tmp_path, "cap-quit", "J1", ["navigation"], [
+        (False, "self-ended", 4, 0.02),
+        (True, "journey-complete", 30, 0.15),
+    ])
+
+    report = render({"cap-quit": read_arm(quitter)})
+
+    row = next(l for l in report.splitlines() if "navigation" in l)
+    assert "| 30.0 |" in row, row
+
+
+def test_a_setup_failure_is_excluded_from_every_outcome(
+    tmp_path: Path,
+) -> None:
+    """A run that never reached the mission says nothing about the
+    capability it was configured with. Counting it as a failure would let a
+    broken configuration read as a weak arm."""
+    from benchmark.matrix import read_arm, render
+
+    ledger = _ledger(tmp_path, "cap-broken", "J1", ["survival"], [
+        (False, "process-error", 0, None, "failed"),
+        (True, "journey-complete", 20, 0.10),
+    ])
+
+    report = render({"cap-broken": read_arm(ledger)})
+
+    row = next(l for l in report.splitlines() if "survival" in l)
+    # One attempt counted, one success, one excluded.
+    assert row.endswith("| 1 | 1 | 20.0 | $0.100 | 0 | 0 | 1 |"), row
+    assert "excluded" in report
+
+
+def test_a_ledger_that_never_recorded_its_capabilities_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Two ledgers that both say nothing can be two different
+    configurations, and grouping them would pool arms that never matched."""
+    from benchmark.matrix import MatrixError, read_arm
+
+    ledger = _ledger(tmp_path, "historical", "J3", None,
+                     [(False, "max_turn_cost", 28, 0.26)])
+
+    with pytest.raises(MatrixError):
+        read_arm(ledger)
+
+    assert read_arm(ledger, allow_unknown=True)
+
+
+def test_a_ledger_that_mixes_arms_is_refused(tmp_path: Path) -> None:
+    """Averaging two capability sets reports a number belonging to neither."""
+    from benchmark.matrix import MatrixError, read_arm
+
+    directory = tmp_path / "mixed"
+    directory.mkdir()
+    (directory / "attempts.jsonl").write_text("\n".join([
+        json.dumps({"attempt_id": "a", "journey_id": "J1",
+                    "capabilities": []}),
+        json.dumps({"attempt_id": "b", "journey_id": "J1",
+                    "capabilities": ["survival"]}),
+    ]) + "\n")
+
+    with pytest.raises(MatrixError):
+        read_arm(directory)
+
+
+def test_the_run_link_matches_the_identifier_the_observatory_uses(
+    tmp_path: Path,
+) -> None:
+    """The report links into Sessions, so the two formulas have to agree."""
+    from hashlib import sha256
+
+    from benchmark.matrix import run_id
+
+    expected = sha256(b"cap-a0:cap-a0-01").hexdigest()[:16]
+    assert run_id("cap-a0", "cap-a0-01") == expected
+
+
+def test_a_made_character_reaches_the_overlay_without_its_secret(
+    tmp_path: Path,
+) -> None:
+    """The name is new every attempt, and the password stays where it was."""
+    import yaml
+    from benchmark.config import Repository, create_attempt
+
+    config = create_attempt(
+        Repository.discover(),
+        tmp_path / "attempt",
+        fresh_character="Bkexampleone",
+    )
+    written = yaml.safe_load(
+        (config.directory / "settings.yaml").read_text(encoding="utf-8")
+    )
+    profile = written["gateway"]["players"][config.player_profile]
+
+    assert config.creates and config.character == "Bkexampleone"
+    assert profile["character"] == "Bkexampleone"
+    assert profile["creates"] is True
+    assert "password" not in profile
+    assert "Bkexampleone" not in str(written.get("secrets", ""))
+
+
+def test_a_name_the_game_would_refuse_never_reaches_an_attempt(
+    tmp_path: Path,
+) -> None:
+    from benchmark.config import BenchmarkConfigError, Repository, create_attempt
+
+    with pytest.raises(BenchmarkConfigError):
+        create_attempt(
+            Repository.discover(),
+            tmp_path / "attempt",
+            fresh_character="Bk-example_1",
+        )
+
+
+def test_every_attempt_of_an_arm_names_a_different_character() -> None:
+    """One name reused across attempts is one character reused across them."""
+    from benchmark.e1 import fresh_character
+
+    names = {
+        fresh_character("cap-a0", f"20260810T0530{index:02d}Z-01")
+        for index in range(8)
+    }
+
+    assert len(names) == 8
+    assert all(name.isalpha() for name in names)
+
+
+def test_starting_maxima_come_from_the_reset_and_not_from_levelling(
+    tmp_path: Path,
+) -> None:
+    """A character that levels ends with higher maxima than it was rolled.
+    Recording those would compare an arm against a number its own success
+    produced."""
+    from benchmark.metrics import _starting_maxima
+
+    events = [
+        {"kind": "reset_receipt", "payload": {
+            "ok": True, "state": {"hit": [22, 22], "move": [83, 83]},
+        }},
+        {"kind": "observation", "payload": {
+            "kind": "player_state",
+            "values": {"max_hit": 41, "max_move": 96},
+        }},
+    ]
+
+    assert _starting_maxima(events) == (22, 83)
+
+
+def test_a_failed_reset_supplies_no_starting_maxima() -> None:
+    """An unverified reset proves nothing about what the run started from."""
+    from benchmark.metrics import _starting_maxima
+
+    events = [{"kind": "reset_receipt", "payload": {
+        "ok": False, "state": {"hit": [22, 22], "move": [83, 83]},
+    }}]
+
+    assert _starting_maxima(events) == (None, None)
+
+
+def test_warm_and_fresh_character_are_refused_together() -> None:
+    """Warm reuses one attempt's configuration, and that names one
+    character, so the two options promise opposite things."""
+    from benchmark.e1 import main
+
+    with pytest.raises(SystemExit) as exit_code:
+        main(["--warm", "--fresh-character"])
+
+    assert exit_code.value.code == 2

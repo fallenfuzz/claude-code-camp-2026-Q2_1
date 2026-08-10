@@ -19,6 +19,7 @@ class BenchmarkConfigError(RuntimeError):
 
 
 _CLI_PLAYER_PROFILE = "benchmark-cli"
+_FRESH_PLAYER_PROFILE = "benchmark-fresh"
 _CLI_PLAYER_PASSWORD_ENV = "BOUKENSHA_PLAYER_PASSWORD"
 RESULT_MODES = ("raw", "minimal", "full")
 
@@ -85,6 +86,16 @@ class AttemptConfig:
     profile: str
     result_mode: str
     max_turn_cost: float
+    #: The character this attempt plays, and whether the attempt has to make
+    #: it. A made character carries nothing from the run before, which is
+    #: what lets two arms be compared rather than one contaminating the next.
+    character: str = ""
+    creates: bool = False
+    #: The week 3 capabilities the attempt runs with, read back from the
+    #: overlay rather than from the request. A capability already enabled
+    #: in the repository settings is on whether or not it was asked for,
+    #: so echoing the request would name an arm that never ran.
+    capabilities: tuple[str, ...] = ()
 
     def environment(self) -> dict[str, str]:
         # Absolute: the agent is started from its own package directory, so
@@ -108,6 +119,7 @@ def create_attempt(
     max_iterations: int | None = None,
     max_turn_cost: float | None = None,
     capabilities: tuple[str, ...] = (),
+    fresh_character: str | None = None,
 ) -> AttemptConfig:
     """Create a secret-free settings overlay for one run."""
     if result_mode not in RESULT_MODES:
@@ -144,6 +156,24 @@ def create_attempt(
         player_profile,
         player_character,
     )
+    character = ""
+    if fresh_character is not None:
+        if not re.fullmatch(r"[A-Za-z]+", fresh_character):
+            raise BenchmarkConfigError(
+                "a made character's name is letters only, because the game "
+                f"refuses anything else, got {fresh_character!r}"
+            )
+        # The secret is the one already configured for the selected player.
+        # A made character is a new identity, not a new secret, and writing
+        # one into the overlay would put it on disk.
+        players = gateway.setdefault("players", {})
+        players[_FRESH_PLAYER_PROFILE] = {
+            "character": fresh_character,
+            "password_env": password_env,
+            "creates": True,
+        }
+        selected_profile = _FRESH_PLAYER_PROFILE
+        character = fresh_character
     connection["player_profile"] = selected_profile
     admin = gateway.get("admin") or {}
     if not isinstance(admin, dict):
@@ -208,6 +238,11 @@ def create_attempt(
                 )
             entry["enabled"] = True
 
+    enabled = tuple(sorted(
+        name
+        for name, entry in (settings.get("capabilities") or {}).items()
+        if isinstance(entry, dict) and entry.get("enabled") is True
+    ))
     (directory / "settings.yaml").write_text(
         yaml.safe_dump(settings, sort_keys=False), encoding="utf-8"
     )
@@ -224,6 +259,9 @@ def create_attempt(
         profile=profile,
         result_mode=result_mode,
         max_turn_cost=max_turn_cost,
+        capabilities=enabled,
+        character=character,
+        creates=fresh_character is not None,
     )
 
 

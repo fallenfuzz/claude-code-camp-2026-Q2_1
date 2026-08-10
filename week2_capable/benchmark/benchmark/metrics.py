@@ -68,6 +68,17 @@ class AttemptMetrics:
     gateway_journal: str
     error: str | None = None
     tool_arguments: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    #: Which week 3 capabilities were enabled. The digest above is the tool
+    #: surface and is identical across arms, so it tells none of them apart.
+    capabilities: tuple[str, ...] = field(default_factory=tuple)
+    #: The character this attempt played, whether the attempt made it, and
+    #: the maxima it was rolled. The game rolls a made character's stats, so
+    #: without these a difference between arms cannot be told apart from a
+    #: difference between the characters that ran them.
+    character: str = ""
+    character_made: bool = False
+    max_hit: int | None = None
+    max_move: int | None = None
 
     @property
     def aggregate_eligible(self) -> bool:
@@ -128,6 +139,8 @@ def measure_attempt(
     schema_bytes: int,
     schema_token_estimate: int,
     result_mode: str = "full",
+    capabilities: tuple[str, ...] = (),
+    character: str = "",
     reset_id: str | None = None,
     error: str | None = None,
     models_path: Path | None = None,
@@ -205,6 +218,13 @@ def measure_attempt(
         reset_id=reset_id,
         profile_id=str(profile.get("profile_id")) if profile.get("profile_id") else None,
         result_mode=result_mode,
+        capabilities=tuple(capabilities),
+        character=character,
+        character_made=any(
+            event.get("kind") == "character_made" for event in gateway
+        ),
+        max_hit=_starting_maxima(gateway)[0],
+        max_move=_starting_maxima(gateway)[1],
         capability_digest=(
             str(profile.get("capability_digest"))
             if profile.get("capability_digest") else None
@@ -392,6 +412,40 @@ def _corrective_calls(
     followed = sum(1 for index in positions if index + 1 < len(calls))
     unmatched_rejections = max(0, rejected_count - len(positions))
     return followed + min(unmatched_rejections, max(0, len(calls) - followed))
+
+
+def _starting_maxima(
+    events: Iterable[Mapping[str, Any]],
+) -> tuple[int | None, int | None]:
+    """The maxima the character started the mission with.
+
+    Read from the verified state in the reset receipt, not from the last
+    thing the game said. A character that levels during the run ends with
+    higher maxima than it was rolled, and recording those would compare an
+    arm's outcome against a number its own success produced.
+    """
+    hit: int | None = None
+    move: int | None = None
+    for event in events:
+        payload = event.get("payload")
+        if event.get("kind") != "reset_receipt" or not isinstance(payload, dict):
+            continue
+        if not payload.get("ok"):
+            continue
+        state = payload.get("state")
+        if not isinstance(state, dict):
+            continue
+        hit = _second(state.get("hit"), hit)
+        move = _second(state.get("move"), move)
+    return hit, move
+
+
+def _second(pair: Any, fallback: int | None) -> int | None:
+    """The maximum out of the game's current-and-maximum pair."""
+    if isinstance(pair, (list, tuple)) and len(pair) == 2 \
+            and isinstance(pair[1], int):
+        return int(pair[1])
+    return fallback
 
 
 def _final_state(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:

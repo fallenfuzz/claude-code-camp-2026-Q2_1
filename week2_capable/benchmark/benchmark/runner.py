@@ -129,6 +129,8 @@ def run_attempt(
         schema_bytes=proof.schema_bytes,
         schema_token_estimate=proof.schema_token_estimate,
         result_mode=config.result_mode,
+        capabilities=config.capabilities,
+        character=config.character,
         reset_id=_reset_id(gateway_journal),
         error=error,
         models_path=repository.agent / "boukensha" / "models.yaml",

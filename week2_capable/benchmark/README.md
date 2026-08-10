@@ -80,6 +80,26 @@ Use a fresh `--output-dir` for every measured mode.
 `--journey J1|J2` selects the evidence-judged objective. J2 asks the agent to
 find the Massive Minotaur in the newbie zone.
 
+`--fresh-character` makes a new character for every attempt.
+
+- The game keeps its switches, auto-flee threshold, inventory, equipment and
+  skills on the character between sessions, and the reset restores none of
+  them. Without a new character each time, one arm's settings reach the next.
+- The name is derived from the ledger and the attempt, so it is unique per
+  attempt and the same attempt always names the same character. It is letters
+  only, which is all the game accepts.
+- The attempt overlay gains a player profile marked `creates`, reusing the
+  selected player's existing password secret. No secret is written to the
+  overlay or the ledger.
+- A name the game already knows fails the login before any model call, which
+  the setup-failure path treats as fatal and stops the sequence. Entering it
+  would hand back the character the previous attempt left behind.
+- The ledger records the character, whether it was made, and the maxima it was
+  rolled, because the game rolls a made character's stats and a difference
+  between arms has to be told apart from a difference between characters.
+- Characters are not deleted as part of a run. Isolation comes from the unique
+  name, which survives a crash, so cleanup can never invalidate a result.
+
 `--runs N` sets the target priced journey sample count for that output ledger.
 A partial ledger can resume toward the same target:
 

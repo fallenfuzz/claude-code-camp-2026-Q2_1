@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -93,6 +94,14 @@ def main(argv: list[str] | None = None) -> int:
              "relocating to the temple instead of resetting the baseline",
     )
     parser.add_argument(
+        "--fresh-character",
+        action="store_true",
+        help=(
+            "make a new character for every attempt, so no game setting, "
+            "item or skill carries over from the run before"
+        ),
+    )
+    parser.add_argument(
         "--capability",
         action="append",
         default=[],
@@ -112,6 +121,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--player and --player-profile are mutually exclusive")
     if arguments.player and not arguments.password_stdin:
         parser.error("--player requires --password-stdin")
+    if arguments.warm and arguments.fresh_character:
+        # Warm reuses one attempt's configuration, and that configuration
+        # names one character. The two options promise opposite things.
+        parser.error(
+            "--warm reuses one character, which --fresh-character exists to "
+            "prevent"
+        )
     journey = JOURNEYS[arguments.journey]
     repository = Repository.discover()
     proof = prove_surface(profile=arguments.profile)
@@ -198,6 +214,10 @@ def main(argv: list[str] | None = None) -> int:
             max_iterations=arguments.max_iterations,
             max_turn_cost=arguments.max_sample_cost,
             capabilities=tuple(arguments.capability),
+            fresh_character=(
+                fresh_character(output.name, attempt_id)
+                if arguments.fresh_character else None
+            ),
             )
         if arguments.warm:
             shared_config = config
@@ -256,6 +276,23 @@ def _positive_integer(value: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError("--runs must be at least 1")
     return number
+
+
+#: Hex is half letters already. The digits take the tail of the alphabet, so
+#: a digest becomes a name the game accepts without losing its distinctness.
+_DIGIT_LETTERS = str.maketrans("0123456789", "qrstuvwxyz")
+
+
+def fresh_character(ledger: str, attempt_id: str) -> str:
+    """A name the game has never seen, derived from the attempt it serves.
+
+    Derived rather than random so the same attempt always names the same
+    character, which keeps a ledger row and a player file readable against
+    each other afterwards. Letters only, because the game refuses anything
+    else by re-prompting, which reads as a hung connection.
+    """
+    digest = hashlib.sha256(f"{ledger}:{attempt_id}".encode()).hexdigest()
+    return "Bk" + digest[:10].translate(_DIGIT_LETTERS)
 
 
 def _attempt_id(run_number: int, *, multiple: bool) -> str:
