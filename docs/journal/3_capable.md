@@ -44,7 +44,6 @@ judgment. The full design is in
   cheaper, which is the claim the week should end by proving or refuting.
 
 ## Technical Observations
-
 ### 1. Thirteen cold missions, zero sightings: the autopsy ranked the work
 
 Before building anything we ran the mission as-is, repeatedly, to let
@@ -87,42 +86,7 @@ handling second, then the rest and flee reflexes. Combat interrupts
 matter, but nothing else matters while every dollar goes to blind
 wandering.
 
-### 2. The capabilities landed as five flags, and the first live sweep paid off
-
-The build followed the autopsy's ranking as five independently switchable
-capabilities: navigation (routing and systematic exploration over the
-agent's own map), knowledge (a re-rendered state summary each model call,
-required per-response state fields, and the agent's assertions stored as
-distinct beliefs), survival (numeric reflexes: the game's own auto-flee
-threshold kept set, rest before movement runs out), economy (banking gold
-above a ceiling at a place the agent recorded as a bank), and campaign
-(a deterministic mission phase chosen from typed readiness). With every
-flag off, the advertised tool surface and its digest are unchanged from
-the measured baseline, so any subset can run as an experiment arm.
-
-The one live verification that fit before the account's API credits ran
-out was worth the night on its own: a single exploration call walked 47
-steps and discovered 30 rooms with typed stop reasons and vitals
-tracking, where the baseline had spent roughly 90 model calls per attempt
-discovering less. The same short verification loop caught two defects no
-unit test had found, because both lived in real data:
-
-- Stored exit lists use the game's abbreviations ("n") while learned
-  exit links use full words ("north"), so the set arithmetic that finds
-  unexplored exits never matched on real stores. The synthetic test
-  fixtures had used full words on both sides and hidden it.
-- Right after a baseline reset, the store is wiped but the in-process
-  position state is not, so the two disagree about the current room at
-  exactly the moment a cold mission starts. The exploration routine now
-  falls back to the live room observation; whether a reset should also
-  reset in-process state is an open question.
-
-Credits ran out mid-verification, so the comparison batch, the
-per-capability measurements, and the learning curve remain queued rather
-than claimed. Nothing in this observation asserts mission improvement:
-that number does not exist until the batch runs.
-
-### 3. The before and after: fewer decisions, no deaths, a map that compounds
+### 2. The before and after: fewer decisions, no deaths, a map that compounds
 
 With credits restored, the same mission ran as three measured cohorts
 against the retained thirteen-attempt baseline, all under the same reset
@@ -149,7 +113,7 @@ and the same evidence-based judge.
   remains open. The honest claim is efficiency, survival, and compound
   coverage, not victory.
 
-### 4. Reading the transcripts overturned the night's story
+### 3. Reading the transcripts overturned the night's story
 
 The batch numbers were reported before any transcript was read. Opening
 one attempt's full log, message by message, changed the account.
@@ -190,7 +154,7 @@ meaning shrinks: it measures cheap walking, not competent play. The
 capability that matters, playing the game, was not built: no readiness
 against a target, no preparation, no economy loop reached, no strategy.
 
-### 5. The map that compounded was 235 copies of a small neighbourhood
+### 4. The map that compounded was 235 copies of a small neighbourhood
 
 Observation 3 reported that warm runs accumulated 235 rooms while a cold
 run mapped about 35, and called it knowledge compounding. Checking that
@@ -235,114 +199,7 @@ The wider lesson is the same one as observation 4, one level deeper. The
 earlier number was not wrong because the measurement was careless. It
 was wrong because nobody asked what the thing being counted was.
 
-### 6. Two lines of wiring made every measurement noise
-
-Before building anything on the plan, the defects the transcripts had
-already shown got fixed, because a measurement taken through them means
-nothing.
-
-The first was invisible in the code and obvious in the output. A tool
-result is shaped for the model before it reaches it, and in the compact
-shapes that wrapper is itself JSON. The internal fetchers that build the
-agent's standing context read that shaped value instead of the gateway's
-own text, so the mission line arrived as machine noise and rendered
-every field as "None". Two features that were supposed to tell the agent
-where it stood told it nothing, for every call of every run. The fix
-reads the transformation evidence that already carried the original
-envelope, so it works whatever shape the model's view takes.
-
-The second was a sweep walking a character that was sitting down. The
-game refuses a move from rest, the refusal reads to the executor exactly
-like a blocked exit, and three refusals exhaust the routine's setback
-budget, so the sweep ended after four steps having gone nowhere. Nothing
-in the routine had ever checked posture. The parser had been reporting
-it the whole time and nobody was listening, which is the same shape as
-the hunger signal being parsed and dropped.
-
-Neither is interesting as engineering. Both are worth recording because
-they were present during every measured run this week, including the
-ones whose numbers were reported as progress.
-
-### 7. Four reviews to get one rule right
-
-Room identity looked like a small piece of bookkeeping and took four
-adversarial reviews, each of which found something I had not.
-
-The first rule I wrote joined 55 percent of the recorded places and I
-was pleased with it. The review took the game's own room numbers as an
-answer key and showed that it merged five genuinely different rooms in a
-maze, which is the one failure the design says must never happen: a
-wrong merge invents a door that does not exist, and a route planner will
-happily walk an agent through it.
-
-Tightening it dropped joining to 7 percent, which was safe and useless.
-Finding out why exposed my real mistake. My test for "these two rooms
-are different" treated two exits that had not yet been proven to lead to
-the same place as proof that they led to different places. Since every
-place starts out alone, a single walked exit could disqualify a room
-forever. That one inversion was why the Armory, seen in sixteen
-different runs, refused to become one room.
-
-The next review found the same class of error one level up: the check
-looked at one side of a merge instead of both, so two rooms that
-directly disagreed could still be glued together by a third,
-partly-observed room that happened to agree with each of them. The one
-after that found it again one hop further out: two lookalike rooms whose
-own neighbours are proven different are themselves proven different, and
-I was merging them and labelling the merge confirmed. Difference is not
-a comparison, it is a closure.
-
-The final measurement, against the game's room numbers: every merge the
-rule makes is correct, and it joins 43 percent of the pairs that are
-truly the same room. Why the rest are missed turned out not to be the
-rule at all. A room's stored description sometimes contains what was
-happening in the room rather than the room itself, a fled
-combat line, loot on the floor, one extra drunk, so the same room reads
-as two. That single defect accounts for most of the lost joins, and it
-belongs to the observation pipeline, not here.
-
-What I take from it is narrower than "reviews are good". Every one of
-these bugs was invisible to the tests I wrote, because I wrote tests for
-the cases I had thought of, and each defect lived in a case I had not.
-The reviews that found them all did the same thing: constructed a world
-where my rule had to choose, and checked the choice against something
-outside my judgment.
-
-### 8. A map that joined only after the run had ended
-
-With the identity rule approved, wiring it looked like bookkeeping: write
-the conclusions into the store, read them when building the map. The
-review found that the wiring worked perfectly and delivered nothing.
-
-Places are named per run. Recomputing identity when a run starts joins
-everything earlier runs saw, but every room this run enters is named
-fresh and belongs to no joined room until the run ends. So the agent
-always stands in a place the joined map does not contain. Asking to walk
-to a room known from yesterday returned unreachable, every time, in
-exactly the situation the whole feature exists for. The recorded map was
-correct and the agent could never use it.
-
-The fix was to compute identity where the map is built rather than read
-it from what was written down, so the room being stood in is joined as
-soon as it is seen, and to keep the written record as the thing a person
-can inspect. That inverted which part is authoritative: the stored
-identity is a report, and the live computation is what the agent walks.
-
-Two store defects fell out of the same work. Withdrawing a layer of
-facts told no one: the change feed the Observatory follows never learned
-the facts had gone, so a reader would show a binding that no longer
-existed indefinitely. And re-observing a value that had been withdrawn
-attached the observation to the withdrawn claim instead of making it
-current again, so after a knowledge reset the store could report an
-observation while the fact stayed absent. That is the most likely
-explanation for the empty map after resets we had been attributing to
-the projector.
-
-None of the three was visible from the tests. All three were found by
-someone asking what the code does when the situation is not the one it
-was written for.
-
-### 9. The room description was recording the moment, not the place
+### 5. The room description was recording the moment, not the place
 
 Room identity was missing joins it should have made, and the reason was
 not the rule. A room's stored description was carrying whatever happened
@@ -368,10 +225,20 @@ existing store is unchanged. It changes what every future run records,
 and the recorded past can only be repaired by replaying the journals,
 which is its own step.
 
-### 10. Facts that were written where nobody was reading
+The rule that came out of it merges only pairs that are truly the same
+room, and catches 43 percent of them. The wiring taught more than the
+rule did. Computing identity when a run starts joins everything earlier
+runs saw, but every room this run enters is named fresh, so the agent
+always stands in a place the joined map does not contain, and asking to
+walk to a room known from yesterday returned unreachable every time.
+Identity has to be computed where the map is built, not read from what
+was written down, which makes the stored record a report and the live
+computation the thing the agent walks.
 
-Three facts landed this round and a review found each of them addressed
-to the wrong place, in a different way.
+### 6. Facts that were written where nobody was reading
+
+Three facts landed this round, and each of them was written to the wrong
+place, in a different way.
 
 Cleaning the room description moved combat prose out of what a room is,
 which was the point, but it moved it into the list of creatures present.
@@ -405,178 +272,7 @@ The pattern across all three is one thing. Recording a fact and reading
 it are two halves of the same feature, and I keep landing the first and
 calling it done.
 
-### 11. Four cheap conveniences that took the map apart
-
-Each of these was defensible on its own. The game names the room behind
-every exit, so ask on arrival. The room text never changes, so read it
-once. The text repeats on every visit, so turn it off. The game will
-loot a corpse itself, so let it.
-
-Together they produced a run that ended with a level 1 character, no
-gold, no kills, stuck resting, and a record claiming its auto-flee
-threshold had been set.
-
-The chain, in the order it happens. Turning the room text off means
-every arrival records an empty description, overwriting the text an
-earlier look had earned. Room identity is keyed partly on that text, so
-the keys flip on every step and rooms with the same title merge and come
-apart again. The map stops growing. The sweep walks the same four rooms
-in a circle for twenty six moves. Three commands per step against a
-thirty second limit on the call blows the limit, so the sweep is cut off
-and the model is told only that its tool failed.
-Its own rest reflex sits the character down underneath the model, which
-spends its last five turns trying to walk a character it cannot see is
-resting, because the block does not mention posture.
-
-Meanwhile the auto-flee command was not a command. The game answered
-"Huh!?!" and we wrote "applied" into the record. The advice the agent
-was supposed to carry never reached it either: the file is not copied
-into a measured run and the capability is off by default, and the code
-treats a missing file as no advice rather than as a fault. So the run
-intended to measure that feature measured its absence and said nothing.
-
-None of it was visible in the tests. Each piece was tested alone against
-inputs built by hand, and the pipeline that clobbers the data was never
-in any test. It was visible immediately in one real run, to a reader
-who went looking for what the code does rather than what it says.
-
-What I take from it: cheap is not free, and four cheap things landed in
-one afternoon interact in ways that no one of them predicts. The rule I
-would give myself is that anything which changes what is recorded, not
-just what is displayed, has to be run before the next such change lands.
-
-### 12. A bound in steps, inside a call bounded in seconds
-
-The sweep that circled for twenty six moves had a second problem
-underneath the first, and it is the more interesting one. A routine
-stops after sixty steps. The call carrying it is abandoned after thirty
-seconds. Nobody had ever put those two numbers next to each other.
-
-The run says what happens when you do. Of three sweeps, one finished and
-reported. The other two issued 149 and 88 commands, left no stop record
-at all, and returned nothing: 237 of the run's 281 commands, four fifths
-of everything the character did, invisible to the model that asked for
-it.
-
-I first wrote that the abandoned sweeps kept walking unattended. That
-was wrong, and the review that caught it made the defect clearer rather
-than smaller. Both sweeps stop at the same instant, 29.85s after their
-call, because the agent does send a cancellation and the server library
-does honour it. Control is never lost. What is lost is the report, which
-is the only thing the model ever sees.
-
-Reaching the honest number took three attempts and I got it wrong each
-time in the same way. I measured the gap between one journal event and
-the next and called it the cost of a command. The gaps hold whatever was
-waiting: a turn boundary carrying the model's own thinking time, a pause
-while the character is reset, a rest sleeping through six seconds. My
-first margin was built on a 1.995s "slowest command" that was setup work,
-a `score` arriving two seconds after a reset pause had ended, before any
-routine existed. Restricted to commands inside a routine, the slowest gap
-is 0.303s, and measured properly at the wire, send to reply, the slowest
-command in the entire run is 0.114s. The margin I had derived was twice
-what the evidence supported, which is four seconds of every call, six or
-seven steps of walkable ground thrown away.
-
-So the margin is now two numbers that are named separately: a measured
-worst step of 1.21s, four commands because a step stands the character
-first, and an authored factor of about three that the run cannot justify
-and the document says so. Insurance is allowed. Insurance dressed as
-measurement is not.
-
-The other thing the run settled is that a routine cannot rest. The rest
-loop sleeps up to 120 seconds against a 30 second call, and the one rest
-in the record recovered nothing at all: movement was 14 before it and 14
-after 12.6 seconds of sitting, because regeneration lands on the game's
-tick and not on ours. Worse, the cut arrived between the command that
-sits the character down and the one that stands it up, so the character
-stayed seated, the next order was refused, and the run ended that way.
-There is no honest repair for that from inside a cancelled call, since
-every wait fails at once. The repair is to never sit down: a routine
-that finds movement low now stops and says so, and the model rests
-between calls with the command it already had.
-
-One more thing surfaced only because a reviewer asked what a missed case
-would do. Making the deadline a new stop reason is safe only if every
-place that reads an outcome stops on reasons it does not recognise. The
-sweep did the opposite, listing what stops and letting the rest fall
-through, and a step refused on the deadline returns without waiting for
-anything, so a loop that carried on would spin without ever yielding.
-Nothing would run, the connection would never be read, and the
-cancellation that ends the call could not even be delivered. A missed
-entry would not be a wrong answer, it would be a gateway that has to be
-killed.
-
-I proved that on purpose. Reverting the dispatch to its old shape and
-running the new tests did not fail them, it hung the suite, and the
-timeout I had wrapped around the test could not fire either, for exactly
-the same reason. The tests now cap the refusals and fail with a sentence
-instead. Two of them, written first, had passed against the reverted
-code because both reached the one dispatch site that was already
-correct.
-
-Evidence: [the plan](../plans/week3_capable/features.md), [the
-design](../plans/week3_capable/routine_bounds.md), and
-`week2_capable/gateway/tests/test_navigation_bounds.py`. Against the
-live game, three sweeps now pair start to stop with none past the
-ceiling, and with the deadline moved in deliberately close, all three
-stop on it and report.
-
-What I take from it: a bound is only a bound in the unit the caller
-measures in. Steps are not seconds, and the two had never been compared
-because they lived in different packages.
-
-### 13. A target nobody set, paid for with the thing being measured
-
-The Observatory froze for minutes whenever a session was open. The cause
-was arithmetic: the page asked for the whole story every 2.0 seconds and
-the story took 2.4 seconds to build. Work arriving faster than it
-finishes never drains, and because every handler did its reading inline,
-the one slow call held the loop and the whole application stopped
-answering.
-
-Two things fixed it, and only one of them is interesting. The page now
-asks whether anything changed, which costs 5 milliseconds, and fetches
-the story only when the answer moves. The response also stopped carrying
-the conversation: every model request embeds the messages before it, so
-1154 records held 16.9 MB, all of it shipped on every tick to draw
-240-character excerpts. Withholding those five fields and serving them
-per record on request took the body from 19.3 MB to 3.7 MB and the
-sanitising from 601 ms to 14 ms.
-
-The interesting part is what I did next. I wrote "under 300 ms" into the
-plan, nobody having asked for it, and then built a record window to
-reach it: the story returned the most recent 200 of 4845 records. It hit
-the number. It also opened the session at Turn 2 with its first
-iteration numbered 122, and every heading that counted iterations
-counted the loaded ones, so a chapter reported 11 where the session had
-143. I had those numbers suppressed rather than treating them as the
-signal they were. Review then found the window's own rule failing on
-real data: 1314 records carry no iteration scope and sort inside one, so
-the cut landed mid-iteration at 362 of 1180 window sizes, displaying a
-cost of $0.000000 against $0.000325 actual.
-
-Opening the page showed a story that began in the middle, and the
-window came out. What makes it worth recording is that the replacement I
-designed was also wrong, and measurement said so before it was built.
-The idea was an outline of every turn and iteration, always whole, with
-contents loading forwards. But every figure an outline carries is an
-aggregate over the records it replaces, so building it means projecting
-all 4845 first: 0.0008 s of the 0.370 s. With nothing cached, each
-contents request pays the projection again. It multiplies server work to
-save transfer, and transfer was never the problem.
-
-The endpoint now returns every record: 3.57 MB in 0.535 s, fetched only
-when the session has actually changed. The plan carries both rejections
-with the numbers that killed them.
-
-The lesson is not about caching or payloads. A performance target
-invented by the person doing the work, and never shown to the person the
-work is for, is indistinguishable from a requirement once it is written
-down, and it will be paid for out of whatever is not being measured. The
-hang was fixed by not asking, not by making the answer smaller.
-
-### 14. The agent was told what it could see, and it stopped wandering
+### 7. The agent was told what it could see, and it stopped wandering
 
 Until this run the agent was handed a goal and a set of tools and left to
 work out its situation from whatever the last command printed. Watching
@@ -621,7 +317,7 @@ to the last part that does not change, and the lesson is that where you
 put something in a request is a cost decision as much as an attention
 one.
 
-### 15. The world the agent can walk is a seventh of the world
+### 8. The world the agent can walk is a seventh of the world
 
 Every run starts in the temple at the centre of the main city. Walking
 outward from it through the exits the world actually has reaches 1,865
@@ -638,7 +334,7 @@ game's own files. Knowledge we cannot tie to a place in the world is
 knowledge the agent cannot route with, cannot return to, and cannot carry
 into the next run.
 
-### 16. The knowledge we added made the agent worse at an easy errand
+### 9. The knowledge we added made the agent worse at an easy errand
 
 We turned the five capabilities into an experiment: six arms on one mission,
 three attempts each, every attempt playing a character the game had never
@@ -697,7 +393,7 @@ anything which helps a lost agent looks like pure overhead to one that is not
 lost. The measurements are in
 [the capability matrix report](../reports/week3_capability_matrix.md).
 
-### 17. The week we built more knowledge, and the week nothing needed it
+### 10. The week we built more knowledge, and the week nothing needed it
 
 The mission this week exists to solve was solved once already, in week 0,
 before any of this machinery was written. That run found the monster and
@@ -751,9 +447,11 @@ turned that from an opinion into a conclusion.
   bounded routines reduced observed hazard events to zero in the
   measured cohorts, with the safer-ground caveat retained.
 - Knowledge retained across runs makes repeat missions cheaper:
-  partially confirmed. Coverage compounds strongly, but the mission's
-  cost ceiling, not knowledge, currently bounds each run, so the curve
-  shows in mapped ground rather than dollars.
+  refuted for the knowledge we built. Measured against a control on the
+  same errand, the situation summary cost 2.3 times the calls and 4.7
+  times the money, and was the only arm that failed to finish. Coverage
+  does compound across runs, but nothing yet turns that into a cheaper
+  mission.
 - Moving decisions into deterministic machinery risks hiding failures
   instead of fixing them: confirmed the hard way. Aggregate numbers
   looked like progress while the transcripts showed a blind explorer
@@ -771,6 +469,7 @@ turned that from an opinion into a conclusion.
 
 ## Key Takeaway
 
-Machinery made the agent cheap and safe before anyone checked whether it
-understood the game; the transcripts showed it did not, and only reading
-them revealed it.
+We spent the week adding what the agent knows, and the measurements say
+it was failing for want of attention rather than information: the same
+summary that helped a lost agent made a found one walk four times as far
+for nothing.
