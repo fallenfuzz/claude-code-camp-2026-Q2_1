@@ -2,474 +2,298 @@
 
 ## Technical Goal
 
-Make the agent capable of a hard game goal on a small model: find and kill
-the Massive Minotaur, a strong monster somewhere in the unexplored game
-world, efficiently in steps and cost. Week 2 made the agent observable.
-Week 3 uses that instrument to find out why missions fail and to build the
-knowledge and machinery that make them succeed.
+Make the agent capable of a hard game goal on a small model: find and kill the
+Massive Minotaur, a strong monster somewhere in an unexplored world, without
+spending most of the budget wandering or dying to basic game mechanics.
 
-The design premise, argued before any evidence: a hard goal handed to a
-fresh model is a failure before the mission starts. The game has survival
-rules a language model cannot know from the goal text alone. Characters
-tire after too many moves and must rest. Dark areas blind the player
-without a light source. Some monsters attack on sight. Health, hunger,
-thirst, equipment, and experience level all gate what is survivable. The
-plan is therefore knowledge first: facts the agent earns by playing, rules
-we author for it, and deterministic machinery (route planning, survival
-reflexes, a preparation planner) that spends the model's attention only on
-judgment. The full design is in
-[the knowledge plan](../plans/week3_capable/knowledge.md).
+Week 3 tests three kinds of assistance:
+
+- Survival handles recurring hazards such as exhaustion, darkness, and combat.
+- Navigation executes bounded routes and exploration without a model call for
+  every movement.
+- Knowledge retains what earlier play discovered and presents useful state to
+  the model.
+
+The goal is not to enable every feature. It is to measure which assistance
+makes the Claude Haiku 4.5 player more successful, cheaper, or safer, and to
+understand why.
 
 ## Technical Uncertainty
 
-- I do not know whether a small model can complete this mission at all,
-  even with good knowledge. The binding constraint could be model judgment
-  rather than missing facts.
-- I do not know which failure actually dominates: not knowing where the
-  target is, dying to game mechanics, or burning the budget on wandering.
-  Guessing wrong would spend the week building the wrong capability first.
-- Moving decisions out of the model and into deterministic code risks
-  hiding failures instead of fixing them, if the machinery is wrong.
+- I do not know whether a small model can complete the Minotaur mission at all.
+- I do not know whether location, survival, preparation, or model judgment is
+  the binding constraint.
+- Deterministic routines may reduce calls while optimizing the wrong behavior.
+- More knowledge may improve decisions, or merely add information that competes
+  for the model's attention.
 
 ## Technical Hypotheses
 
-- Repeated identical attempts will fail in a stable, measurable pattern,
-  and that pattern will rank the capabilities to build better than any
-  design argument.
-- Most of the budget will be lost to navigation and wandering, not to
-  wrong decisions at genuine choice points.
-- Survival mechanics (exhaustion, darkness, aggressive monsters, hunger)
-  will fire inside even short runs, without the agent understanding them.
-- Knowledge retained across runs will make repeat missions measurably
-  cheaper, which is the claim the week should end by proving or refuting.
+- Repeated cold attempts will fail in a stable pattern that identifies the
+  first capability to build.
+- Navigation and wandering will consume more of the budget than genuine choice
+  points.
+- Survival hazards will appear even in short runs before the model understands
+  how to handle them.
+- Knowledge retained across attempts will make later missions cheaper.
 
 ## Technical Observations
-### 1. Thirteen cold missions, zero sightings: the autopsy ranked the work
 
-Before building anything we ran the mission as-is, repeatedly, to let
-recorded failures choose the build order. Method: the benchmark launches
-the unmodified agent with the goal "Find the minotaur and kill it.", no
-location hint, on the small model already in use. Every attempt is cold:
-the player is reset to the temple at level 1 with baseline memory, and a
-verified reset receipt is retained before the first model call. Each
-attempt is capped at eight minutes of wall clock and about twenty cents of
-model spend. Success is judged only from game evidence (the monster's
-death message), never from the agent's own claim.
+### 1. Thirteen cold Minotaur attempts spent every budget before finding the target
 
-Thirteen attempts completed, costing $2.84 in total.
+The baseline asked a fresh level-one character to "Find the minotaur and kill
+it." No location hint or persistent knowledge was provided. Each attempt began
+from a verified temple reset, used the same small model, and stopped after eight
+minutes or about twenty cents. Success required a retained game message proving
+the Minotaur died. The agent's own claim was not accepted as evidence.
 
-- No attempt ever saw the minotaur. Roughly 1,150 model calls produced
-  zero sightings of the target. Every attempt spent its entire budget
-  wandering, which confirms that locating the goal is its own problem, not
-  a detail of movement.
-- Darkness was the dominant hazard by an order of magnitude: 79 retained
-  "it is pitch black" observations. The agent walks into dark areas it
-  cannot perceive, keeps acting blindly inside them, and does not leave.
-  In the design's failure inventory darkness was one hazard among many.
-  The evidence promoted it to second place.
-- Aggressive monsters attacked 12 times and killed the agent 3 times.
-  The agent fled 4 times, so escape happens, but not by policy.
-- Movement exhaustion rejected commands 6 times, and hunger and thirst
-  appeared even within eight-minute runs.
-- Attempt cost was stable near the ceiling (about $0.22, roughly 90 model
-  calls) with two shorter self-ended runs, so the failure pattern is
-  consistent rather than noisy.
+Thirteen attempts cost $2.84 and used roughly 1,150 model calls.
 
-One methodological result stands on its own: the observability stack paid
-for itself here. A live map defect surfaced during the first manual
-mission (the layout crashed on a world shape only deep exploration
-produces), was reproduced from the retained session payload, fixed, and
-pinned by a regression test, all while the mission kept running.
+- No attempt saw the Minotaur.
+- Darkness appeared 79 times. The agent repeatedly entered areas it could not
+  perceive and continued acting there.
+- Aggressive monsters attacked 12 times and killed the character 3 times.
+- The agent fled 4 times, but had no consistent escape policy.
+- Exhaustion rejected movement 6 times. Hunger and thirst also appeared within
+  the short attempts.
+- An attempt averaged 86.3 model calls, usually ending near its spending limit.
 
-The consequence for the plan: build the locate machinery first, darkness
-handling second, then the rest and flee reflexes. Combat interrupts
-matter, but nothing else matters while every dollar goes to blind
-wandering.
+The target-location problem dominated the mission. Combat preparation could
+not matter while the agent never reached the monster. The evidence therefore
+ranked bounded exploration first, darkness handling second, and the remaining
+survival behavior after them.
 
-### 2. The before and after: fewer decisions, no deaths, a map that compounds
+### 2. Deterministic movement reduced calls, but did not make the agent competent
 
-With credits restored, the same mission ran as three measured cohorts
-against the retained thirteen-attempt baseline, all under the same reset
-and the same evidence-based judge.
+To test whether model calls were being wasted on individual steps, eleven cold
+attempts enabled bounded navigation routines and survival reflexes. Five more
+attempts retained their discovered map between runs. These attempts used the
+same Minotaur goal and the same game-evidence judge as the baseline.
 
-- Cold, all capabilities on, eleven attempts: 28.5 model calls per
-  attempt against the baseline's 86.3, a 67% reduction, and the spread
-  collapsed from ±21.4 calls to ±0.5. Deterministic routines made
-  attempts nearly identical where the baseline was noise. Zero deaths
-  against three, and none of the baseline's hazard signatures (79
-  darkness lines, 12 attacks, 6 exhaustion rejections) appeared at all.
-  Two caveats stated: the per-attempt cost ceilings differed slightly,
-  and bounded sweeps may avoid hazards partly by staying nearer safe
-  ground.
-- The tool mix explains the reduction: a capable attempt issues sweep
-  routines and reads its state summary, with zero single-step move
-  calls. The model spends its calls deciding, not walking.
-- Warm, knowledge retained across five runs: call counts stay flat at
-  the spend ceiling, but coverage compounds. The persistent map grew to
-  235 distinct rooms where a cold attempt maps about 35, and every run
-  pushed into new ground.
-- The minotaur was never sighted in any cohort. The world is larger
-  than the explored radius under these budgets, so the mission itself
-  remains open. The honest claim is efficiency, survival, and compound
-  coverage, not victory.
+The cold capable attempts averaged 28.5 model calls, 67 percent fewer than the
+baseline's 86.3. Their spread also fell from 21.4 calls to 0.5. No character
+died, and none of the baseline's darkness, attack, or exhaustion signatures
+appeared. The model used exploration routines instead of requesting every move.
 
-### 3. Reading the transcripts overturned the night's story
+The Minotaur was still never sighted. Reading a full transcript showed why the
+call reduction overstated the improvement:
 
-The batch numbers were reported before any transcript was read. Opening
-one attempt's full log, message by message, changed the account.
+- The mission-status message always instructed the model to keep exploring
+  because its readiness fields were not reaching the model correctly.
+- A required state line at the end of every response was absent on all 27
+  measured iterations. Tool-calling responses often contain no ordinary text,
+  so the requirement conflicted with the response mechanism itself.
+- The model repeated the same decision, continue sweeping, on almost every
+  iteration.
+- Exploration reports returned geometry, but omitted useful experience such as
+  creatures, shops, objects, area changes, and warning signs passed en route.
+- A routine could record the target and continue walking without telling the
+  model it had seen it.
 
-- The mission-phase line the model received on every call was broken: a
-  wiring fault fed it the wrong JSON layer, so every readiness field read
-  "None" and the line always said "sweep them". The phase machinery's
-  entire runtime effect was a constant instruction to explore.
-- The required end-of-response state line was ignored on 27 of 27
-  iterations even though the contract was verifiably in the prompt. The
-  cause is structural: responses that call tools carry little or no
-  text, so demanding a text line on every response fights the tool
-  mechanism itself. The idea needs a different carrier, not a retry.
-- A sweep died after four steps because the character was resting and
-  the game refused to move it ("You feel too relaxed to do that"). The
-  routine never checks posture before walking. Two earlier explanations
-  for this stop were wrong until the journal was read.
-- The model's own thoughts are 27 near-identical repetitions of
-  "continue sweeping to find the minotaur". Nothing it ever saw
-  mentioned its level, equipment, skills, or gold, so no other thought
-  was possible.
+The measured improvement was real but narrow. Code made walking cheaper and
+more repeatable. It did not supply preparation, strategy, or informed judgment.
+An efficient agent can still pursue the wrong activity. The comparison also
+used a slightly higher cost ceiling for the capable attempts, so the call
+reduction is reported as movement evidence rather than a success comparison.
 
-The deeper findings are about the knowledge design itself. The store
-holds only the structural skeleton of what the parser sees: room names,
-exits, connections, creature and object names, own vitals. Everything
-qualitative stays in the raw logs and never becomes knowledge: what
-shops sell, what signs say, darkness, appraisals of monsters, doors and
-keys. And the model has no way to read even the stored part: its only
-window is a four-line count summary. Exploration reports pure geometry,
-so the model cannot steer toward promising areas or notice a shop, a
-corpse, or the target itself passing by. A swept-past minotaur would
-have been recorded silently and never announced. The week 0 play skill,
-with a plain text memory read before every action and a page of common
-sense rules, understood the game better than this machinery does.
+### 3. A persistent map needs stable room identity before it becomes memory
 
-The call-count collapse from observation 3 stands as measured, but its
-meaning shrinks: it measures cheap walking, not competent play. The
-capability that matters, playing the game, was not built: no readiness
-against a target, no preparation, no economy loop reached, no strategy.
+The five warm attempts appeared to grow one map to 235 rooms, compared with
+about 35 rooms in one cold attempt. That looked like knowledge compounding
+across runs.
 
-### 4. The map that compounded was 235 copies of a small neighbourhood
+The stored data disproved the interpretation. Room identities contained their
+session of origin, so the same physical room became a new record in every run.
+The store held 478 identities but only 114 distinct titles. Main Street alone
+appeared 34 times, and no connection joined one session's map to another.
 
-Observation 3 reported that warm runs accumulated 235 rooms while a cold
-run mapped about 35, and called it knowledge compounding. Checking that
-number against the store before building anything on top of it showed
-what it actually counts.
+Room titles could not safely solve the problem. Several real rooms share the
+same title, description, and exits, especially inside mazes. Room descriptions
+also contained transient creatures, objects, and combat text, which made the
+same place look different on later visits.
 
-Every room the agent enters is recorded under an identity minted from
-the session it was seen in. Enter the Armory in sixteen different runs
-and the store holds sixteen unrelated rooms that happen to share a
-title. Counting the main store: 478 room identities, 114 distinct
-titles, 588 links between rooms, and not one link that crosses a
-session boundary. Main Street exists thirty-four times.
+The lasting lesson is not the matching algorithm. Persistent world knowledge
+requires three different kinds of information:
 
-So the map never joins. Five warm runs do not build one larger map, they
-build five disconnected partial copies of the same small area, and the
-frontier arithmetic that decides where to explore next counts the
-unexplored exits of copies. Coverage, re-treading, and travelling to a
-room by name are all undefined until a room means one thing.
+- Stable place identity, grounded in verified room numbers where available and
+  graph consistency where they are not.
+- Persistent facts about the place, such as exits, services, and signs.
+- Transient facts about the visit, such as a creature present or a fight that
+  happened there.
 
-The fix looked easy and was not. Matching rooms by title alone would
-merge half the map, including a forest maze whose seven rooms share a
-title, an exit list, and a description, and differ only in where their
-exits lead. Merging them would invent doors that do not exist. A first
-rule that refused to merge anything seen twice in one session failed
-against the same store for the opposite reason: the position tracker
-re-mints a room whenever it loses track of where it is, so Temple Square
-and Market Square already appear several times inside a single run, and
-refusing those merges splits precisely the hub rooms every route passes
-through.
+The 235-room result was therefore rejected. Counting stored records without
+defining what one record represents can turn duplication into apparent learning.
 
-What survived is a rule that proposes matches by title, exits, and
-description, then lets the graph decide: two candidates join only when
-no exit contradicts, and preferably when a shared exit agrees. Because
-no link crosses a session yet, agreement between two rooms can only be
-defined through the matching being computed, so the resolver has to
-iterate until it stops changing. Two readings of an earlier draft that
-missed this produced 348 rooms and 288 rooms from identical data, which
-is why the plan now carries predicates and a measurement script instead
-of a headline number.
+The denominator also needed a definition. Walking outward from the starting
+temple reaches 1,865 rooms in 33 areas, while the complete game contains 12,700
+rooms in 189 areas. Ships, portals, scripted transport, and disconnected areas
+account for much of the difference. Exploration should be judged against the
+world the current agent can reach, not every room in the game files.
 
-The wider lesson is the same one as observation 4, one level deeper. The
-earlier number was not wrong because the measurement was careless. It
-was wrong because nobody asked what the thing being counted was.
+### 4. Current state changed behavior only when it supported an available action
 
-### 5. The room description was recording the moment, not the place
+An earlier agent received only its goal, tools, and the latest game response.
+In one run, 109 of its 143 decisions were movement. It never fought, bought an
+item, or consulted prior knowledge.
 
-Room identity was missing joins it should have made, and the reason was
-not the rule. A room's stored description was carrying whatever happened
-to be in the room when it was looked at.
+We then added a short state description before every decision. It included the
+current room, exits already walked, visible entities, health, money, hunger,
+thirst, and map coverage. The description was regenerated for the current call
+and did not accumulate in conversation history.
 
-The parser treated every line it could not classify as part of the
-description. A creature whose line it did not recognise, an item lying
-on the floor, a combat message arriving mid-look, all became part of
-what the room supposedly is. So the Dark Alley At The Levee had two
-descriptions across two visits, differing by a fled combat line, and the
-resolver correctly concluded they were different rooms. Measured cost:
-27 pairs of places falsely proven different, and 188 pairs the game's own
-room numbers say are the same held apart.
+The first run with this context behaved differently:
 
-The fix is structural rather than another pattern to match. This game
-prints a room as title, description, exits, then whatever is present. The
-description therefore ends at the exits line, and everything after it
-belongs to the moment. One flag in the parser.
+- Movement fell from about three quarters of actions to about one third.
+- The agent assessed a creature, fought it, and fled when the fight worsened.
+- It bought and ate food and queried its stored knowledge.
+- The explored map grew from 8 rooms to 18.
 
-It does not repair what is already recorded, since those descriptions
-were stored with the pollution in them, so the measured recall on the
-existing store is unchanged. It changes what every future run records,
-and the recorded past can only be repaired by replaying the journals,
-which is its own step.
+The same context also trapped the agent. Every decision repeated that it was
+hungry and thirsty, but the character had no money and no food. The agent kept
+trying to solve conditions it could not change and abandoned its actual goal.
 
-The rule that came out of it merges only pairs that are truly the same
-room, and catches 43 percent of them. The wiring taught more than the
-rule did. Computing identity when a run starts joins everything earlier
-runs saw, but every room this run enters is named fresh, so the agent
-always stands in a place the joined map does not contain, and asking to
-walk to a room known from yesterday returned unreachable every time.
-Identity has to be computed where the map is built, not read from what
-was written down, which makes the stored record a report and the live
-computation the thing the agent walks.
+The request layout caused a second cost. The changing state was placed at the
+provider's prompt-reuse boundary, making every request appear new. Cost per
+decision increased by a factor of 29 until that boundary was moved back to the
+stable prompt.
 
-### 6. Facts that were written where nobody was reading
+State earns space in a prompt only when it can change the current decision and
+the agent has an available action for it. Truthful but unactionable advice is a
+distraction, and prompt placement affects price as well as attention.
 
-Three facts landed this round, and each of them was written to the wrong
-place, in a different way.
+### 5. More knowledge made an easy mission slower
 
-Cleaning the room description moved combat prose out of what a room is,
-which was the point, but it moved it into the list of creatures present.
-So the agent would have remembered "You flee head over heels" as
-something living in the alley, and said so when asked what it had seen.
-The line had stopped corrupting the map and started corrupting the
-memory instead. Anything after the exits that looks like neither a
-creature nor an object is now filed as something that happened.
+The first controlled capability experiment used an easy, evidence-verifiable
+mission: a new character had to find the Midgaard bakery and read its menu.
+Each of six configurations ran three times with a character the game had never
+seen. Every attempt had a $0.30 and 120-iteration limit.
 
-The refusal fact was written against the joined room and read against
-the observed place, so the one reader written for it never found it, and
-worse, it would have orphaned every time identity was recomputed. Then
-the claim that walking the way later replaced the refusal turned out to
-be a sentence in a docstring: the successful walk wrote a different
-predicate entirely, so a door found shut stayed shut in memory for good.
-Chasing that produced the better idea. The store keeps a changed value as
-a contradiction worth preserving, which is right for what was learned and
-wrong for a door. Whether a way is open is how it stands now, so it
-belongs with the other things that are true at the moment, where a newer
-reading simply replaces an older one.
+The capabilities had concrete meanings in this experiment:
 
-The third was the most dangerous, because it wrote confident nonsense. A
-character that had just rested, or been knocked down, would fail to move
-and have a permanent shut door recorded on a perfectly walkable exit. The
-fix came from the contract we had already written for darkness: a way
-that refuses costs nothing. Paying movement and arriving nowhere is
-something else entirely, and when the cost cannot be established,
-nothing is claimed at all.
+- Survival enabled automatic game toggles and reflexes for recurring hazards.
+- Knowledge added the current-state description and retained world knowledge.
+- Navigation advertised bounded sweep and travel routines.
 
-The pattern across all three is one thing. Recording a fact and reading
-it are two halves of the same feature, and I keep landing the first and
-calling it done.
+| Configuration | Successes | Mean calls on success | Mean cost |
+|---|---:|---:|---:|
+| No capabilities | 3/3 | 16.7 | $0.035 |
+| Survival | 3/3 | 15.3 | $0.032 |
+| Navigation | 3/3 | 18.0 | $0.036 |
+| Survival and knowledge | 3/3 | 23.7 | $0.049 |
+| Knowledge | 2/3 | 38.5 | $0.165 |
+| Survival, knowledge, and navigation | 3/3 | 51.3 | $0.115 |
 
-### 7. The agent was told what it could see, and it stopped wandering
+Zero characters died. Survival therefore had no relevant event to handle, and
+the small difference from the control is route variance. The navigation-only
+agent never invoked its navigation tools, so that arm measured tool adoption,
+not tool quality.
 
-Until this run the agent was handed a goal and a set of tools and left to
-work out its situation from whatever the last command printed. Watching
-it, the behaviour was always the same: it walked. Of 143 decisions in one
-earlier run, 109 were a move. It never fought anything, never bought
-anything, never consulted what it had already learned.
+Knowledge produced the clearest result. It used 2.3 times the control's calls,
+cost 4.7 times as much, and caused the only censored attempt. In that failure,
+the agent made 167 movements across 180 model calls.
 
-The idea was to put a short description of the situation in front of it
-before every decision: the room and how often it had been there, each way
-out and whether that way had been walked, what was standing in the room,
-its own health and money and whether it was hungry, how much of the world
-it had mapped, and anything it had noted itself. Written fresh each time,
-never accumulated, so it can never describe a moment that has passed.
+The state summary included a global count of mapped rooms and unwalked exits.
+Every new room revealed more exits, so the count grew instead of approaching
+completion. The agent repeatedly acknowledged that number and converted an
+errand into an open-ended coverage mission. The eight-call control instead read
+the game's signs and room descriptions and followed them to the bakery.
 
-The first run with it reads differently from every run before it. Moves
-fell from three quarters of all actions to about a third. It sized up a
-creature before fighting, attacked, and fled when the fight turned. It
-bought, it ate, and it asked itself what it already knew. None of those
-had happened once in any earlier run. The world it had mapped grew from
-eight rooms to eighteen.
+The experiment does not prove that knowledge is harmful. It proves that a
+frontier-heavy summary is harmful when the mission is not exploration. A
+capability must be evaluated on the problem it is meant to solve, and global
+progress indicators should not compete with the active goal.
 
-It also failed, in a way worth keeping. Every one of the thirty eight
-descriptions ended with the same two lines: you are hungry, you are
-thirsty, and nothing recovers while that lasts. True, and useless. The
-character had no money and nothing to eat, so there was no action that
-would clear either line. The agent spent the run trying anyway, and its
-last three thoughts are almost word for word the same sentence about
-being stuck. It never looked for the guild it had been sent to find.
+Full measurements and per-attempt evidence are in the
+[capability matrix report](../reports/week3_capability_matrix.md).
 
-Advice that cannot be acted on is not advice, and repeating it thirty
-eight times does not make it truer. What the description needs is a sense
-of what the agent can actually do about what it is being told.
+### 6. A controlled coverage mission exposed weak exploration efficiency
 
-The second failure was in the bill. The run cost twenty nine times more
-per decision than the one before it, and ended by hitting its money
-ceiling after thirty seven decisions rather than running out of steps.
-The cause is that the model provider charges much less for a request
-whose opening is identical to the last one, and the description, being
-different every time, was placed at the very end where the reuse marker
-sits. Every request therefore looked new. The fix is to move the marker
-to the last part that does not change, and the lesson is that where you
-put something in a request is a cost decision as much as an attention
-one.
+Because the bakery mission ended before survival and navigation mattered, a
+second experiment asked each configuration to explore as much of Midgaard as
+possible. Coverage counted distinct verified room numbers in the city, not
+room titles, and movement counted commands actually sent to the game, including
+steps executed inside a routine.
 
-### 8. The world the agent can walk is a seventh of the world
+| Configuration | Mean Midgaard rooms | Rooms per step | Mean steps | Deaths |
+|---|---:|---:|---:|---:|
+| Survival | 31.3 | 0.33 | 95 | 1 |
+| No capabilities | 28.0 | 0.33 | 86 | 1 |
+| Knowledge | 24.3 | 0.29 | 114 | 0 |
+| Survival and knowledge | 23.3 | 0.30 | 95 | 0 |
+| Survival, knowledge, and navigation | 19.7 | 0.21 | 113 | 1 |
+| Navigation | 17.7 | 0.22 | 89 | 1 |
 
-Every run starts in the temple at the centre of the main city. Walking
-outward from it through the exits the world actually has reaches 1,865
-rooms in 33 areas. The world has 12,700 rooms in 189 areas. The rest is
-reached by ship, by portal, by being carried, or not at all. This matters
-because we had been judging how much of the world the agent had explored
-against the larger number, which was quietly telling us it had seen
-almost nothing when the part it can walk to is about a seventh of what we
-were counting.
+The instruction asked the agent to use 100 movements, but the harness did not
+enforce a hard stop at 100. Coverage scoring used only the first 100 movements,
+while eleven of eighteen agents stopped before reaching that point and others
+continued beyond it. Mean rooms therefore mixes exploration quality with the
+model's decision to continue. Rooms per actual step is the fairer comparison.
 
-Fresh evidence that observation 9 is still live: in one session the agent
-knew six rooms, and one of them we could not match to any room in the
-game's own files. Knowledge we cannot tie to a place in the world is
-knowledge the agent cannot route with, cannot return to, and cannot carry
-into the next run.
+Survival tied the control at 0.33 rooms per step, so its higher room count came
+from walking farther rather than exploring better. Navigation and the fully
+stacked configuration were least efficient at 0.22 and 0.21 rooms per step.
+One stacked attempt took 148 steps to find 13 rooms and stopped at the cost
+limit. Batching movement made it possible to walk hard while learning little.
 
-### 9. The knowledge we added made the agent worse at an easy errand
+The result does not establish a best configuration at three attempts. It does
+show that route executors need a mission-relevant coverage strategy and a
+binding budget. Faster movement alone is not better exploration.
 
-We turned the five capabilities into an experiment: six arms on one mission,
-three attempts each, every attempt playing a character the game had never
-seen so that nothing could carry over between them. The mission was to find
-the bakery and read its menu, judged from the game's own output.
+### 7. The decisive difference from the Week 0 success was attention, not volume
 
-The agent with nothing switched on solved it in 16.7 model calls. The agent
-carrying the situation summary we built for it took 38.5, cost four and a
-half times as much, and was the only arm that failed an attempt at all,
-running to its money ceiling after 103 calls. Adding route planning on top
-made it worse again, at 51.3.
+The Minotaur had already been killed once during the Week 0 architecture
+experiments. That agent used two readable memory files, a searchable world
+record, a six-stage plan with verified conditions, and about thirty recent
+events. When it needed information, it retrieved it instead of carrying the
+whole play history in every request.
 
-Reading the transcripts showed why, and it was not the price of the text.
-The summary ends with a line counting how much of the map is known and how
-many ways out have not been walked. That count grew for the whole run: one
-room and one unwalked way at the start, then ten and eight, then forty and
-thirty two, finishing at fifty five rooms with thirty four ways still open.
-Every room entered opened more doors than it closed, so the only line
-reporting progress never came close to finished and always asked for more
-walking.
+The comparison has important limits. The successful character was already
+level seven, had mapped 163 rooms, and had died twice while preparing. A human
+also supplied the Minotaur's location. The run proves that the small model can
+prepare, travel, and fight when the decisive facts are available. It does not
+prove that the model can discover those facts from a cold start.
 
-The agent answered it, once per turn, in its own words: "Thank you for the
-state update. I'm on Elm Street with 56 movement points and 28 unexplored
-exits across 34 rooms." Ninety three percent of everything it did was
-walking. The errand had quietly become covering the map.
+Week 3's agent retained the entire conversation. No Minotaur attempt reached
+the configured compaction threshold, so early room descriptions and the
+agent's own acknowledgements were still being resent near the end. Across the
+capability experiment, the metadata envelope around tool results consumed
+27 to 31 percent of accumulated history. In the longest knowledge attempt,
+agent prose and the current instruction reached about 37 percent.
 
-The run without the summary took eight calls, and did it by reading what the
-game itself wrote on the walls: "I can see there's a market square to the
-south. The bakery might be there", and two rooms later, "The description says
-the bakery is to the north."
+The state description itself was short and nonpersistent. Its larger cost was
+behavioral: it encouraged four times as much walking, and each extra move added
+another result to a history paid for again on every later request.
 
-Reading the failure closely matters here, because it is easy to blame the
-wrong thing. That run reached the market square on its fourth decision, and
-the shop lay west while it went east. That first wrong turn is ordinary
-variance and the summary had nothing to do with it. Another run carrying the
-same summary finished in eight calls, like the one without. What the summary
-did was decide what happened next. Instead of coming back to the street it
-had been on, the agent spent another ninety decisions enlarging the map, and
-never once tried to look at anything or ask a shopkeeper for a list, which is
-the only evidence the errand is judged on.
+The next knowledge design should therefore separate three layers:
 
-The game's own directions were never taken away, and saying they were would
-be too strong. They sat in the same conversation the whole time. What we
-added was a second instruction that competed with them, and a progress bar
-that only ever counts up is a very insistent one. Survival came out best on paper at 15.3 calls, but the
-per-attempt spread overlapped the control completely and nothing died in any
-arm, so the reflex it exists for never fired. At three attempts that is an
-observation and not a result.
+- An evidence journal retains everything for verification.
+- A searchable archive holds durable facts and past experience.
+- A small working set contains only the mission, current phase, phase exit
+  condition, verified current state, last action and outcome, and relevant
+  memories.
 
-The lesson is about the shape of the evidence rather than the numbers. A
-capability is not good or bad on its own, it is good or bad for a problem,
-and we had been measuring ones built for a long hunt against an errand with
-none of the hunt's difficulty. The honest conclusion is not that the
-knowledge work is wrong. It is that this mission cannot rank it, and that
-anything which helps a lost agent looks like pure overhead to one that is not
-lost. The measurements are in
-[the capability matrix report](../reports/week3_capability_matrix.md).
-
-### 10. The week we built more knowledge, and the week nothing needed it
-
-The mission this week exists to solve was solved once already, in week 0,
-before any of this machinery was written. That run found the monster and
-killed it. Setting the two side by side is the most useful thing the
-measurements produced, because the difference is not how much the agent knew.
-
-The early version kept two memory files and gave the model a way to search
-them, a plan with steps the code could check for itself (be level seven, be
-carrying a light), and a short list of recent events. When the model wanted
-something it asked for it. Everything else stayed out of the way.
-
-The version we built this week pushes a summary of the situation in front of
-the model before every decision and keeps the entire conversation besides. In
-the runs measured here, nothing was ever compacted, so a room description read
-on the fourth decision was still being resent on the hundredth. Two thirds of
-what the model was reading by the end was old ground and its own earlier
-remarks.
-
-That is the finding, and it is not what we expected to find. We spent the week
-adding information on the assumption that the agent failed for want of it. The
-transcripts say it failed for want of attention. On the errand, an agent given
-the summary walked four times as far as one given nothing and did worse, and
-the one line it kept answering was a count of unexplored exits that grows all
-run and never finishes. On the coverage mission, the arm with every capability
-enabled covered the least ground per step of any arm.
-
-Two qualifications keep this honest. The early success was not a cold start:
-the character was already level seven with a map of 163 rooms, it had died
-twice getting there, and the location of the target was supplied by a human
-rather than discovered. So it shows that the model can prepare, travel and
-fight when the few facts that matter are in front of it. It does not show that
-it can find the target alone.
-
-The lesson we would act on with more time is to stop measuring how much the
-agent is told and start measuring how much of what it is told bears on the
-next decision. A working set of a dozen lines, the mission, the phase, what
-would end the phase, where the agent is, what it just did and what came of it,
-with everything else available on request. The measurements in
-[the capability matrix report](../reports/week3_capability_matrix.md) are what
-turned that from an opinion into a conclusion.
+The question is no longer how much information the agent can be given. It is
+whether each item changes the decision the agent must make now.
 
 ## Technical Conclusions
 
-- Repeated identical attempts did fail in a stable pattern, and that
-  pattern ranked the build order better than argument: confirmed.
-- Most of the budget was lost to navigation, not decisions: confirmed,
-  and moving navigation into deterministic routines removed two thirds
-  of all model calls.
-- Survival mechanics fired inside short runs without the agent
-  understanding them: confirmed at baseline, and the reflex layer plus
-  bounded routines reduced observed hazard events to zero in the
-  measured cohorts, with the safer-ground caveat retained.
-- Knowledge retained across runs makes repeat missions cheaper:
-  refuted for the knowledge we built. Measured against a control on the
-  same errand, the situation summary cost 2.3 times the calls and 4.7
-  times the money, and was the only arm that failed to finish. Coverage
-  does compound across runs, but nothing yet turns that into a cheaper
-  mission.
-- Moving decisions into deterministic machinery risks hiding failures
-  instead of fixing them: confirmed the hard way. Aggregate numbers
-  looked like progress while the transcripts showed a blind explorer
-  driven by a broken instruction. Machinery without transcript-level
-  verification, and without a success metric tied to the actual game
-  goal, optimizes the wrong thing efficiently.
-- Room identity is a prerequisite nobody planned for. Knowledge that
-  cannot be joined across runs is not memory, and the compounding-map
-  result was an artifact of counting identities instead of rooms.
-- Open: the knowledge contract needs a revision before more capability
-  work: completeness (qualitative observations must become facts),
-  access (the model must be able to read what it knows), and feedback
-  (exploration must return experience, not geometry). The game strategy
-  layer that week 0 held in prose has no carrier yet.
+- Repeated cold attempts produced a stable failure: the target was never seen,
+  while wandering and darkness consumed nearly every budget.
+- Deterministic movement reduced model calls by 67 percent and removed observed
+  hazards in its cohort, but transcript review showed that it automated
+  exploration rather than solving the mission.
+- Persistent knowledge did not yet compound. Session-scoped room identities
+  turned repeated visits into false growth.
+- A current-state summary changed the model's behavior, but global frontier and
+  unactionable survival advice competed with the mission.
+- The knowledge configuration was substantially worse than the control on the
+  bakery mission. The coverage mission also found no improvement in exploration
+  efficiency from the stacked capabilities.
+- The Minotaur remained unsolved from a cold start. Location discovery,
+  preparation, and attention are still open problems.
 
 ## Key Takeaway
 
-We spent the week adding what the agent knows, and the measurements say
-it was failing for want of attention rather than information: the same
-summary that helped a lost agent made a found one walk four times as far
-for nothing.
+The agent did not fail because it lacked information. It failed because the
+right information was not isolated for the current decision, while irrelevant
+history and progress signals kept pulling its attention toward more walking.
