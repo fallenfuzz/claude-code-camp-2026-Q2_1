@@ -621,6 +621,23 @@ to the last part that does not change, and the lesson is that where you
 put something in a request is a cost decision as much as an attention
 one.
 
+### 15. The world the agent can walk is a seventh of the world
+
+Every run starts in the temple at the centre of the main city. Walking
+outward from it through the exits the world actually has reaches 1,865
+rooms in 33 areas. The world has 12,700 rooms in 189 areas. The rest is
+reached by ship, by portal, by being carried, or not at all. This matters
+because we had been judging how much of the world the agent had explored
+against the larger number, which was quietly telling us it had seen
+almost nothing when the part it can walk to is about a seventh of what we
+were counting.
+
+Fresh evidence that observation 9 is still live: in one session the agent
+knew six rooms, and one of them we could not match to any room in the
+game's own files. Knowledge we cannot tie to a place in the world is
+knowledge the agent cannot route with, cannot return to, and cannot carry
+into the next run.
+
 ## Technical Conclusions
 
 - Repeated identical attempts did fail in a stable pattern, and that
