@@ -4,12 +4,11 @@
 # Environment / secrets
 .env
 .env.local
-.boukensha/profiles/
+**/.boukensha/profiles/
 .boukensha/registry.db*
 .boukensha/locks/
 .boukensha/gateway/
-.boukensha/sessions/
-.boukensha/benchmarks/
+**/.boukensha/benchmarks/
 .boukensha/observatory/
 .boukensha/experiments/
 
@@ -70,3 +69,6 @@ week0_explore/infrastructure/lib/
 # The perception training lab: an experiment, kept out of the graded tree.
 lab/
 PROGRESS.md
+
+# Accessibility and screenshot dumps taken while checking a page
+.playwright-mcp/

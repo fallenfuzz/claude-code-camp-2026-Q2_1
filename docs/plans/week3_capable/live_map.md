@@ -56,8 +56,10 @@ all of them.
 
 ## The visual is the mockup
 
-`.coordination/maplab/mockup.css` and `mockup.js` are the definition and
-are read directly, not reinterpreted.
+The approved mockups are the definition and are read directly, not
+reinterpreted. They are working material and are not part of this
+repository, so what they settle is written out below rather than referred
+to.
 
 - A room the agent has stood in is filled with its terrain colour, from
   the tokens the map already uses. One seen only from next door is an
