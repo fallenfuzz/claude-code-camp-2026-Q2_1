@@ -3211,38 +3211,3 @@
   stroke: var(--color-coral);
   stroke-width: 1.7;
 }
-
-.live-map-hole-edge,
-.live-map-hole-pod {
-  fill: none;
-  stroke: var(--color-quiet);
-}
-
-.live-map-hole-pod {
-  stroke-dasharray: 4 3;
-}
-
-.live-map-hole-label {
-  fill: var(--color-muted);
-  font-size: 11px;
-  text-anchor: middle;
-}
-
-.live-map-hole-label.is-small {
-  font-size: 9px;
-  opacity: .75;
-}
-
-.live-map-hole.is-trap .live-map-hole-edge {
-  stroke: var(--color-coral);
-  stroke-width: 1.7;
-}
-
-.live-map-hole.is-trap .live-map-hole-pod {
-  fill: var(--color-coral-soft);
-  stroke: var(--color-coral);
-}
-
-.live-map-hole.is-trap .live-map-hole-label {
-  fill: var(--color-coral);
-}

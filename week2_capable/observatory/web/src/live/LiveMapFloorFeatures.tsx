@@ -3,7 +3,6 @@ import { memo } from "react";
 import {
   border,
   type MapFloorFeatures,
-  type MapHole,
   type MapStair,
 } from "./mapFloorProjection";
 
@@ -11,61 +10,13 @@ type Props = MapFloorFeatures;
 
 export const LiveMapFloorFeatures = memo(function LiveMapFloorFeatures({
   stairs,
-  holes,
 }: Props) {
   return (
     <g className="live-map-floor-features">
-      {holes.map((hole) => <MapHoleShape hole={hole} key={hole.id} />)}
       {stairs.map((stair) => <MapStairShape key={stair.id} stair={stair} />)}
     </g>
   );
 });
-
-function MapHoleShape({ hole }: { hole: MapHole }) {
-  const anchors = hole.ways.map(({ anchor }) => anchor);
-  const lowX = Math.min(...anchors.map(({ x }) => x)) - 52;
-  const highX = Math.max(...anchors.map(({ x }) => x)) + 52;
-  const lowY = Math.min(...anchors.map(({ y }) => y)) - 17;
-  const highY = Math.max(...anchors.map(({ y }) => y)) + 17;
-  const middle = { x: (lowX + highX) / 2, y: (lowY + highY) / 2 };
-  return (
-    <g className={[
-      "live-map-hole",
-      hole.trap ? "is-trap" : "",
-    ].filter(Boolean).join(" ")}>
-      {hole.ways.map((way, index) => (
-        <line
-          className="live-map-hole-edge"
-          key={`${hole.id}:way:${index}`}
-          x1={way.leaves.x}
-          x2={way.anchor.x}
-          y1={way.leaves.y}
-          y2={way.anchor.y}
-        />
-      ))}
-      <rect
-        className="live-map-hole-pod"
-        height={highY - lowY}
-        rx="18"
-        width={highX - lowX}
-        x={lowX}
-        y={lowY}
-      />
-      <text className="live-map-hole-label" x={middle.x} y={middle.y - 2}>
-        {hole.title} {hole.trap ? "✕" : "◦"}
-      </text>
-      {hole.trap ? (
-        <text
-          className="live-map-hole-label is-small"
-          x={middle.x}
-          y={middle.y + 12}
-        >
-          {hole.ways.length} ways in, none out
-        </text>
-      ) : null}
-    </g>
-  );
-}
 
 function MapStairShape({ stair }: { stair: MapStair }) {
   const corner = border(stair.at, stair.disc);

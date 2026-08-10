@@ -253,9 +253,8 @@ function buildMapGraphWithLayout(
 ): MapGraph {
   const canonical = canonicalizeAtlasRooms(nodes, edges);
   const everything = [...canonical.nodes].sort(compareNodes);
-  // A room with no square is rendered beside the fixed floor as an off-map
-  // destination. It must not make every correctly placed room fall back to
-  // the old per-session layout.
+  // A room with no fixed square must not make every correctly placed room
+  // fall back to the old per-session layout.
   const candidateFloor = currentFloor(everything, world);
   const hasRoomsOnCandidateFloor = candidateFloor !== null
     && everything.some((node) => onFloor(node, world, candidateFloor));

@@ -32,21 +32,8 @@ export type MapStair = {
   barred: boolean;
 };
 
-export type MapHoleWay = {
-  leaves: MapPoint;
-  anchor: MapPoint;
-};
-
-export type MapHole = {
-  id: string;
-  title: string;
-  trap: boolean;
-  ways: MapHoleWay[];
-};
-
 export type MapFloorFeatures = {
   stairs: MapStair[];
-  holes: MapHole[];
 };
 
 type CanonicalEdge = WorldEdge & {
@@ -57,17 +44,6 @@ type CanonicalEdge = WorldEdge & {
 type BusyRect = MapPoint & {
   width: number;
   height: number;
-};
-
-const planarVectors: Record<string, MapPoint> = {
-  north: { x: 0, y: -1 },
-  northeast: { x: 1, y: -1 },
-  east: { x: 1, y: 0 },
-  southeast: { x: 1, y: 1 },
-  south: { x: 0, y: 1 },
-  southwest: { x: -1, y: 1 },
-  west: { x: -1, y: 0 },
-  northwest: { x: -1, y: -1 },
 };
 
 export function projectMapFloorFeatures({
@@ -107,12 +83,6 @@ export function projectMapFloorFeatures({
       y: point.y + mapRoomHeight / 2,
     },
   ]));
-  const holes = projectHoles(
-    canonicalEdges,
-    canonicalNodes,
-    roomPoints,
-    layout,
-  );
   const stairSeeds = projectStairSeeds(
     canonicalEdges,
     canonicalNodes,
@@ -121,8 +91,7 @@ export function projectMapFloorFeatures({
     layout,
   );
   return {
-    holes,
-    stairs: placeStairs(stairSeeds, rooms, holes, gameLinks, layout),
+    stairs: placeStairs(stairSeeds, rooms, gameLinks, layout),
   };
 }
 
@@ -199,55 +168,9 @@ function projectStairSeeds(
   return stairs.sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function projectHoles(
-  edges: CanonicalEdge[],
-  nodes: ReadonlyMap<string, WorldNode>,
-  roomPoints: ReadonlyMap<string, MapPoint>,
-  layout: RoomLayout,
-): MapHole[] {
-  const grouped = new Map<string, MapHoleWay[]>();
-  for (const edge of edges) {
-    const from = roomPoints.get(edge.source);
-    const target = nodes.get(edge.target);
-    const targetSquare = target?.atlas?.vnum === undefined
-      ? null
-      : layout.square(target.atlas.vnum);
-    const direction = normalizeDirection(edge.direction);
-    const vector = direction === null ? undefined : planarVectors[direction];
-    if (
-      from === undefined
-      || roomPoints.has(edge.target)
-      || targetSquare !== null
-      || vector === undefined
-    ) {
-      continue;
-    }
-    const far = {
-      x: from.x + vector.x * 200,
-      y: from.y + vector.y * 200,
-    };
-    const ways = grouped.get(edge.target) ?? [];
-    ways.push({
-      leaves: roomEdge(from, far),
-      anchor: {
-        x: from.x + vector.x * 122,
-        y: from.y + vector.y * 78,
-      },
-    });
-    grouped.set(edge.target, ways);
-  }
-  return [...grouped].map(([target, ways]) => ({
-    id: `hole:${target}`,
-    title: nodes.get(target)?.title ?? "Unknown destination",
-    trap: !edges.some((edge) => edge.source === target),
-    ways,
-  })).sort((left, right) => left.id.localeCompare(right.id));
-}
-
 function placeStairs(
   seeds: StairSeed[],
   rooms: MapRoom[],
-  holes: MapHole[],
   gameLinks: MapGhostLink[],
   layout: RoomLayout,
 ): MapStair[] {
@@ -271,19 +194,6 @@ function placeStairs(
         height: mapRoomHeight / 2 + 26,
       });
     }
-  }
-  for (const hole of holes) {
-    const anchors = hole.ways.map(({ anchor }) => anchor);
-    const lowX = Math.min(...anchors.map(({ x }) => x));
-    const highX = Math.max(...anchors.map(({ x }) => x));
-    const lowY = Math.min(...anchors.map(({ y }) => y));
-    const highY = Math.max(...anchors.map(({ y }) => y));
-    busy.push({
-      x: (lowX + highX) / 2,
-      y: (lowY + highY) / 2,
-      width: (highX - lowX) / 2 + 66,
-      height: (highY - lowY) / 2 + 31,
-    });
   }
   const mapLinks = gameLinks.map(({ source, target }) => ({
     from: squareCenter(source),
@@ -413,24 +323,6 @@ export function border(at: MapPoint, towards: MapPoint): MapPoint {
       at.y - mapRoomHeight / 2,
       Math.min(at.y + mapRoomHeight / 2, towards.y),
     ),
-  };
-}
-
-function roomEdge(from: MapPoint, to: MapPoint): MapPoint {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  if (deltaX === 0 && deltaY === 0) return from;
-  const scale = Math.min(
-    Math.abs(deltaX) > 0.001
-      ? Math.abs((mapRoomWidth / 2 + 2) / deltaX)
-      : Infinity,
-    Math.abs(deltaY) > 0.001
-      ? Math.abs((mapRoomHeight / 2 + 2) / deltaY)
-      : Infinity,
-  );
-  return {
-    x: from.x + deltaX * scale,
-    y: from.y + deltaY * scale,
   };
 }
 

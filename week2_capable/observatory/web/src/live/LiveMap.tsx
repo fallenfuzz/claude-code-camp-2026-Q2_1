@@ -296,10 +296,6 @@ export function LiveMap({
         source: stair.source,
         point: stair.disc,
       })),
-      ...floorFeatures.holes.flatMap((hole) => hole.ways.map((way) => ({
-        source: hole.id,
-        point: way.anchor,
-      }))),
     ];
   }, [floorFeatures, visibleFrontiers]);
   const completeRoomIds = useMemo(() => {
