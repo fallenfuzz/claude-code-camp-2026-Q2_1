@@ -220,3 +220,160 @@ def test_the_block_says_what_the_character_should_weigh(
 
     assert "resting first costs less than dying" in block
     assert "carry-little-gold" in block
+
+
+def test_here_is_what_the_game_just_showed(tmp_path: Path) -> None:
+    """A remembered creature is not a present one. The room the game last
+    described is the only thing that can say what is standing here."""
+    store = KnowledgeStore(tmp_path / "knowledge.db", player_id="tester")
+    _seed(store)
+    evidence = EvidenceRef(
+        session_id="test", source_seq=2, wire_digest="d",
+        parser_version="p1", method="test", observed_at=time.time(),
+    )
+    for predicate, value in (
+        ("name", "a large kobold"), ("kind", "mob"), ("room", "place:s:1:1"),
+    ):
+        store.assert_fact(
+            "room-sighting:1", predicate, value,
+            layer="learned", confidence="confirmed",
+            evidence=evidence, transaction_id="t2",
+        )
+
+    room = _Room("The Temple Of Midgaard", ("n", "e"))
+    room.mobs = ("a temple guard",)
+    room.objects = ("a brass key",)
+    block = render_state_block(store, _Pipeline(room=room),
+                               _Projector("place:s:1:1"))
+    store.close()
+
+    assert "here: a temple guard (creature)" in block
+    assert "here: a brass key (object)" in block
+    assert "kobold" not in block, "a past sighting never reads as present"
+
+
+def test_a_dark_room_reports_nothing_standing_in_it(tmp_path: Path) -> None:
+    """The game shows no contents in the dark, and neither does the block."""
+    store = KnowledgeStore(tmp_path / "knowledge.db", player_id="tester")
+    _seed(store)
+    evidence = EvidenceRef(
+        session_id="test", source_seq=2, wire_digest="d",
+        parser_version="p1", method="test", observed_at=time.time(),
+    )
+    for predicate, value in (
+        ("name", "a large kobold"), ("kind", "mob"), ("room", "place:s:1:1"),
+    ):
+        store.assert_fact(
+            "room-sighting:1", predicate, value,
+            layer="learned", confidence="confirmed",
+            evidence=evidence, transaction_id="t2",
+        )
+
+    block = render_state_block(store, _Pipeline(), _Projector("place:s:1:1"))
+    store.close()
+
+    assert "here:" not in block
+
+
+def test_a_note_from_an_earlier_run_stays_out_of_the_block(
+    tmp_path: Path,
+) -> None:
+    """The zero-gold note. Written in another run two hours earlier, it
+    read as current and argued with the live figure beside it. Dating it
+    was not enough: the agent still cannot tell which one to believe."""
+    store = KnowledgeStore(tmp_path / "knowledge.db", player_id="tester")
+    _seed(store)
+    now = time.time()
+    evidence = EvidenceRef(
+        session_id="earlier", source_seq=1, wire_digest="d",
+        parser_version="p1", method="test", observed_at=now - 8_400,
+    )
+    store.assert_fact(
+        "place:s:1:1", "model.note", "I have 0 gold",
+        layer="belief", confidence="confirmed",
+        evidence=evidence, transaction_id="t2",
+    )
+
+    block = render_state_block(
+        store,
+        _Pipeline(room=_Room("The Temple Of Midgaard", ("n", "e"))),
+        _Projector("place:s:1:1"),
+        now=now,
+    )
+    store.close()
+
+    assert "I have 0 gold" not in block
+    assert "you noted" not in block
+
+
+def test_a_note_from_this_run_is_carried(tmp_path: Path) -> None:
+    """Written seconds ago in this run, it is the present, and saying how
+    old the present is would be noise."""
+    store = KnowledgeStore(tmp_path / "knowledge.db", player_id="tester")
+    _seed(store)
+    now = time.time()
+    store.assert_fact(
+        "place:s:1:1", "model.note", "a door here is locked",
+        layer="belief", confidence="confirmed",
+        evidence=EvidenceRef(
+            session_id="now", source_seq=1, wire_digest="d",
+            parser_version="p1", method="test", observed_at=now - 5,
+        ),
+        transaction_id="t2",
+    )
+
+    block = render_state_block(
+        store,
+        _Pipeline(room=_Room("The Temple Of Midgaard", ("n", "e"))),
+        _Projector("place:s:1:1"),
+        session_id="now",
+        now=now,
+    )
+    store.close()
+
+    assert "you noted (note): a door here is locked" in block
+
+
+def test_stored_condition_says_when_it_was_last_checked(tmp_path: Path) -> None:
+    """Health rides every reply and is current. Gold and hunger were read
+    by a command, and the line is only as current as its oldest part."""
+    store = KnowledgeStore(tmp_path / "knowledge.db", player_id="tester")
+    _seed(store)
+    now = time.time()
+    for predicate, value, seconds in (
+        ("state.gold", 10, 600),
+        ("state.level", 1, 600),
+        ("state.hungry", True, 9_000),
+    ):
+        store.assert_fact(
+            "player:tester", predicate, value,
+            layer="parsed", confidence="confirmed",
+            evidence=EvidenceRef(
+                session_id="s", source_seq=1, wire_digest="d",
+                parser_version="p1", method="test",
+                observed_at=now - seconds,
+            ),
+            transaction_id=f"t-{predicate}",
+        )
+
+    block = render_state_block(
+        store,
+        _Pipeline(
+            room=_Room("The Temple Of Midgaard", ("n", "e")),
+            vitals=_Vitals(14, 100, 84),
+        ),
+        _Projector("place:s:1:1"),
+        player_id="tester",
+        now=now,
+    )
+    store.close()
+
+    live = next(l for l in block.splitlines() if l.startswith("you now:"))
+    sheet = next(
+        l for l in block.splitlines() if l.startswith("character sheet")
+    )
+    assert "14hp" in live and "84mv" in live, "the live line carries no age"
+    assert "ago" not in live
+    assert "gold 10" in sheet and "hungry" in sheet
+    assert sheet.startswith("character sheet, checked 2h ago:"), \
+        "the oldest stored reading dates the sheet, and only the sheet"

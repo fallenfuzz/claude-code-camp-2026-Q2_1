@@ -56,12 +56,11 @@ def before_hunting(
                 "less than dying",
             ))
 
-    for condition in ("hungry", "thirsty"):
-        if state.get(condition):
-            found.append(Advice(
-                "rest-before-going-on",
-                f"you are {condition}, and nothing recovers while it lasts",
-            ))
+    # Hunger and thirst are carried as status and not repeated as advice.
+    # One run ended with the same two lines on all thirty eight decisions,
+    # true every time and answerable none of them: the character had no
+    # money and nothing to eat, so no action cleared either. Advice that
+    # names no action the agent can take crowds out advice that does.
 
     gold = _number(state.get("gold"))
     ceiling = _number(settings.get("gold_carry_ceiling"))

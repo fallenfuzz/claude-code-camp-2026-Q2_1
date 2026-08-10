@@ -34,10 +34,14 @@ def test_being_hurt_says_so() -> None:
     assert "rest-before-going-on" in _rules(before_hunting(state, SETTINGS))
 
 
-def test_being_hungry_says_so_even_at_full_health() -> None:
-    """Starving stops recovery, so full health now is not full health soon."""
-    state = {"level": 6, "hit": 46, "max_hit": 46, "gold": 0, "hungry": True}
-    assert "rest-before-going-on" in _rules(before_hunting(state, SETTINGS))
+def test_hunger_is_status_and_not_repeated_as_advice() -> None:
+    """One run carried the same two hunger lines on all thirty eight
+    decisions. Every one was true, none named an action the character
+    could take with no money and no food, and the objective was never
+    looked for. The condition still rides the character sheet."""
+    state = {"level": 6, "hit": 46, "max_hit": 46, "gold": 0,
+             "hungry": True, "thirsty": True}
+    assert before_hunting(state, SETTINGS) == ()
 
 
 def test_carrying_too_much_gold_says_so() -> None:
