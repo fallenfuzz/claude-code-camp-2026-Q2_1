@@ -9,7 +9,8 @@ tasks:
     # Model must exist in the catalog (boukensha/models.yaml or a .boukensha
     # override).
     provider: anthropic
-    model: claude-haiku-4-5
+    #model: claude-haiku-4-5
+    model: claude-sonnet-5
     #provider: gemini
     #model: gemini-3.5-flash
     #provider: openai
@@ -116,7 +117,7 @@ gateway:
 
     # Raw MUD text bypasses the typed command contract. It is registered but
     # denied by default and requires a reason when explicitly enabled.
-    allow_raw: false
+    allow_raw: true
 
   api:
     host: 127.0.0.1
@@ -224,7 +225,7 @@ capabilities:
     # hunt_level_floor: 5
 
   survival:
-    enabled: false
+    enabled: true
 
     # The work the game will do that the agent would otherwise pay a decision
     # for. Brief is deliberately absent: it stops the game printing the room
