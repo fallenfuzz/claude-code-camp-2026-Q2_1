@@ -10,9 +10,11 @@ const STORAGE_KEY = "boukensha-observatory-theme";
 function initialTheme(): Theme {
   const saved = window.localStorage.getItem(STORAGE_KEY);
   if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
+  // Dark until somebody chooses otherwise. The surface was designed dark and
+  // is read in a dark room next to a game terminal, so following the desktop
+  // preference meant a first visit from a light machine opened in the theme
+  // the design was not built for.
+  return "dark";
 }
 
 export function useTheme(): [Theme, (theme: Theme) => void] {
