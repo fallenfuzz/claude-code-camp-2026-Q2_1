@@ -14,6 +14,7 @@ import {
   liveHref,
   recordedSessionHref,
 } from "./routes";
+import { SessionFinderDialog } from "./shell/SessionFinderDialog";
 
 type PlayerRow = Player & { sessions: Session[]; latest: Session | null };
 type BackdropNode = { id: string; x: number; y: number; emphasis?: boolean };
@@ -451,34 +452,24 @@ export function Launcher({ theme, onThemeChange }: {
           </section>
 
           <section className="menu-item">
-            <button className="menu-heading" onClick={() => setLoadOpen((open) => !open)}>
+            <button className="menu-heading" onClick={() => setLoadOpen(true)}>
               <h2>▤ LOAD A SESSION <span>{selectedRow?.label ?? "player"} · {selectedEndedCount} of {allEndedCount}</span></h2>
               <p>Replay any recorded run of the selected player, or all players.</p>
             </button>
-            {loadOpen && (
-              <div className="session-list">
-                <label className="all-toggle"><input type="checkbox" checked={allPlayers} onChange={(event) => setAllPlayers(event.target.checked)} /> All players</label>
-                {ended.length === 0 && <p className="empty-session">No recorded sessions yet.</p>}
-                {ended.map((session) => (
-                  <button className="session-row" key={session.id} onClick={() => {
-                    window.location.href = recordedSessionHref(session);
-                  }}>
-                    <span>{allPlayers ? `${session.character} · ` : ""}{when(session.updated_at)}</span>
-                    <span>
-                      {session.stop_mode === "forced_after_grace"
-                        ? "stopped · forced after grace · "
-                        : session.stop_mode === "cooperative"
-                          ? "stopped · "
-                          : ""}
-                      {session.event_count} events · {duration(session)} · Load →
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <label className="all-toggle"><input type="checkbox" checked={allPlayers} onChange={(event) => setAllPlayers(event.target.checked)} /> All players</label>
           </section>
+
         </section>
       </div>
+      <SessionFinderDialog
+        open={loadOpen}
+        selectedId=""
+        sessions={ended}
+        onClose={() => setLoadOpen(false)}
+        onSelect={(session: Session) => {
+          window.location.href = recordedSessionHref(session);
+        }}
+      />
     </main>
   );
 }
