@@ -58,8 +58,10 @@ before the agent faces a private game world.
   watching the agent play ([`visualizer/`](week0_explore/visualizer/))
 - [`week1_baseline/`](week1_baseline/README.md): the baseline agent
   (**boukensha**), built step by step
-- `week2_capable/`: the Week 2 agent, gateway, viewer, and observability work,
-  including the current [`observatory/`](week2_capable/observatory/)
+- [`week2_capable/`](week2_capable/README.md): the instrumented agent, its
+  gateway, the [`observatory/`](week2_capable/observatory/), the benchmark
+  harness, and the Week 3 capability work, which lives here rather than in a
+  folder of its own
 - [`docs/`](docs/): plans, technical documentation, and the weekly journal
 
 ## Documentation
@@ -73,9 +75,24 @@ custom agentic loop rather than a coding harness.
 - [Architecture exploration](docs/explore_architectures.md): the pre-week
   experiments and their conclusions
 - [Technical journal](docs/journal/): one entry per week of the bootcamp
+- [Reports](docs/reports/): the measured results, kept apart from the
+  conclusions drawn from them
 - [Plans](docs/plans/): the working plans each build executes from
 
 ## Status
 
-Week 1 is complete. Week 2 is building the observable agent and its
-instrumented gateway in [`week2_capable/`](week2_capable/).
+Weeks 0 to 3 are complete.
+
+- Week 0 chose the architecture: everything moved from the model into code
+  became dependable on a small model.
+- Week 1 built the agent as a custom loop.
+- Week 2 made it observable, through an instrumented gateway and the
+  [Observatory](week2_capable/observatory/).
+- Week 3 built five switchable capabilities and measured them against a
+  control. The
+  [capability matrix](docs/reports/week3_capability_matrix.md) records what
+  they were worth, and
+  [the journal](docs/journal/3_capable.md) records what the week taught.
+
+The mission the project set itself, finding and killing the Massive Minotaur
+from a cold start, is not solved.

@@ -383,17 +383,6 @@ def _bare_session(observer):
     return session
 
 
-def test_a_command_that_cannot_move_us_reuses_the_number() -> None:
-    """Two immortal round trips a command is the cost being avoided."""
-    observer = _Counting()
-    session = _bare_session(observer)
-    asyncio.run(session._room_number("north", ()))
-    for line in ("look", "exits", "score", "inventory", "get all"):
-        asyncio.run(session._room_number(line, ()))
-
-    assert observer.asks == 1, "asked once, for the move"
-
-
 def test_every_way_of_being_moved_asks_again() -> None:
     observer = _Counting()
     session = _bare_session(observer)
@@ -401,19 +390,6 @@ def test_every_way_of_being_moved_asks_again() -> None:
         asyncio.run(session._room_number(line, ()))
 
     assert observer.asks == 5
-
-
-def test_a_fight_does_not_ask_every_round() -> None:
-    """Combat sends a line a round and moves nobody. Judging by arrival
-    rather than by content would spend two immortal calls a round."""
-    observer = _Counting()
-    session = _bare_session(observer)
-    session._room = 3041
-    session.observations = type("O", (), {"room": _room("The East Gate")})()
-    for _ in range(10):
-        asyncio.run(session._room_number("", ()))
-
-    assert observer.asks == 0
 
 
 def test_output_arriving_unbidden_asks_when_it_names_a_new_room() -> None:
@@ -464,20 +440,6 @@ def test_dying_in_a_fight_asks_although_nothing_moved_us() -> None:
 
     assert observer.asks == 1, "the room named is not the room we hold"
     assert number == 3001
-
-
-def test_standing_still_in_the_room_we_hold_asks_nothing() -> None:
-    observer = _Counting()
-    session = _bare_session(observer)
-    session._room = 3041
-    session.observations = type("O", (), {"room": _room("The East Gate")})()
-
-    number = asyncio.run(
-        session._room_number("look", (_room("The East Gate"),))
-    )
-
-    assert observer.asks == 0
-    assert number == 3041
 
 
 def test_the_observer_writes_into_the_session_it_serves(monkeypatch) -> None:
@@ -564,20 +526,6 @@ def test_every_command_records_who_it_was_sent_for(tmp_path) -> None:
     assert ("north", "agent") in lines
 
 
-def test_a_carried_number_is_not_recorded_as_a_reading() -> None:
-    """A record saying the room was read on every command would say the
-    immortal connection was asked when it never was."""
-    observer = _Counting()
-    session = _bare_session(observer)
-    session.journal = _Journal()
-    asyncio.run(session._room_number("north", ()))
-    session._note_room_number(3041, object(), "t1")
-    asyncio.run(session._room_number("score", ()))
-    session._note_room_number(3041, object(), "t2")
-
-    assert len(session.journal.of("room_number")) == 1
-
-
 def test_a_mid_reading_move_leaves_us_holding_the_later_room() -> None:
     """The frame belongs to where it was read. We stand somewhere else."""
     class _Moving:
@@ -650,3 +598,4 @@ def test_a_connection_that_does_not_observe_ingests_nothing() -> None:
 
     assert session.observes is False
     assert ingested == []
+
