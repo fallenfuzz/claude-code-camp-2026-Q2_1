@@ -1,10 +1,13 @@
 # claude-code-camp-2026-Q2
 
-A Player Journey Agent for tbaMUD: an AI agent that plays a text MUD like a
-real player, maps the world, tracks its progression, and reports where players
-get confused, blocked, bored or overpowered.
+An AI agent that plays a text MUD the way a person does. It explores, fights,
+gets lost, dies, and remembers what it learned. Every command it sends and
+every line the game answers is retained as typed evidence, so what the agent
+did and why can be read back afterwards rather than guessed at.
 
-## Watch it
+It is built from first principles as its own agent loop rather than on top of
+a coding harness, because the pre-week experiments showed that everything
+moved out of the model and into code became dependable even on a small model.
 
 [![Boukensha Observatory following an agentic adventure](week2_capable/observatory/docs/demo.gif?raw=true)](https://youtu.be/p8FFp4wVf3I)
 
@@ -19,109 +22,80 @@ plays the game surfaces the journey a new player lives: where it gets lost,
 what kills it, when it gets bored. tbaMUD (CircleMUD) is the proving ground
 before the agent faces a private game world.
 
-## Getting started
+## How it is built
 
-1. **Run the MUD server** (Docker required):
+```mermaid
+flowchart LR
+  M["tbaMUD"] <-- telnet --> G["gateway"]
+  G --> E[("retained evidence")]
+  G <-- MCP --> A["boukensha, the agent loop"]
+  A <-- REST --> L["model"]
+  E --> O["Observatory"]
+  E --> B["benchmark"]
+```
 
-   ```bash
-   cd week0_explore/infrastructure
-   docker compose up -d
-   ```
+- **The agent** owns its own loop: the prompt it sends, the tools it may call,
+  the context it carries, and the cost it is allowed to spend.
+- **The gateway** is the only thing that touches the game. It records every
+  byte in both directions and turns the game's text into typed observations,
+  so no later question has to be answered by re-reading prose.
+- **The Observatory** is the operator surface. Watch a run live, then read its
+  story, spatial replay, cost and knowledge from the same retained evidence.
+- **The benchmark** runs a mission repeatedly and judges the outcome from the
+  game's own output rather than from anything the agent claims about itself.
 
-   The game is then live on `telnet localhost 4000`.
+## See it run
 
-2. **Configure**: settings and secrets live in [`.boukensha/`](.boukensha/).
-   Copy `.boukensha/.env.example` to `.boukensha/.env` and fill in your keys.
+Docker and [uv](https://docs.astral.sh/uv/) are the only prerequisites.
 
-3. **Install the gateway and the benchmark** as isolated editable tools:
+```bash
+cd week0_explore/infrastructure && docker compose up -d   # the game, on port 4000
+cp .boukensha/.env.example .boukensha/.env                # then add your model key
+uv tool install --editable ./week2_capable/gateway
+./week2_capable/bin/observatory
+```
 
-   ```bash
-   uv tool install --editable ./week2_capable/gateway
-   uv tool install --editable ./week2_capable/benchmark
-   ```
+Open <http://127.0.0.1:8787>, start a session from the launcher, and the Live
+view follows the agent as it plays. To drive it from a terminal instead:
 
-4. **Watch it play**, which is the way this project is meant to be used:
+```bash
+week2_capable/bin/agent
+```
 
-   ```bash
-   ./week2_capable/bin/observatory
-   ```
+## What was learned
 
-   Open <http://127.0.0.1:8787>, start a session from the launcher, and the
-   Live view follows the agent as it plays. Sessions, Cost, Experiments and
-   Knowledge read the same retained evidence afterwards.
+The agent was made cheaper, safer and more thorough, and none of that made it
+better at its mission. Five capabilities were built and measured against a
+control, and the configuration carrying the most knowledge was the slowest and
+the only one that failed to finish.
 
-5. **Or run the agent from the terminal**:
+The reason was not missing information. A progress counter shown as a readout
+became the objective the agent optimised, and the summary that helped a lost
+agent made a found one walk four times as far. Attention turned out to be
+scarcer than knowledge.
 
-   ```bash
-   week2_capable/bin/agent
-   week2_capable/bin/agent --player-profile tester
-   ```
+- [Technical journal](docs/journal/): one entry per week, including what
+  failed and why
+- [Reports](docs/reports/): the measurements, kept apart from the conclusions
+  drawn from them
+- [Architecture exploration](docs/explore_architectures.md): why the project
+  runs its own loop
 
-   Every launch creates an isolated player session under
-   `.boukensha/profiles/<player>/sessions/<session>/` and projects cumulative
-   evidence into that player's `.boukensha/profiles/<player>/knowledge.db`.
+## Repository
 
-   Capabilities are off by default and switch on per run, which is how the
-   week 3 measurements were taken:
+| Path | What it holds |
+| --- | --- |
+| [`week0_explore/`](week0_explore/) | The MUD infrastructure, world exploration, and the architecture experiments that chose the design |
+| [`week1_baseline/`](week1_baseline/README.md) | **boukensha**, the agent, built step by step |
+| [`week2_capable/`](week2_capable/README.md) | The gateway, the Observatory, the benchmark, and the capability work |
+| [`docs/`](docs/) | Plans, reports, and the weekly journal |
 
-   ```bash
-   uv run --no-project --env-file .boukensha/.env boukensha-e1 \
-     --spend --cap 0.90 --runs 3 --journey J1 --fresh-character \
-     --capability survival --capability knowledge \
-     --output-dir .boukensha/benchmarks/example
-   ```
-
-   A benchmark or script can use the same launcher and verify a clean baseline
-   before the first model call:
-
-   ```bash
-   printf '%s\n' 'Find the bakery and read the menu.' | \
-     week2_capable/bin/agent --task-stdin \
-     --reset-baseline level1-temple@1 --player-profile tester
-   ```
-
-## Repository structure
-
-- [`week0_explore/`](week0_explore/): MUD infrastructure, world exploration,
-  the architecture experiments, the play-mud skill, and a realtime viewer for
-  watching the agent play ([`visualizer/`](week0_explore/visualizer/))
-- [`week1_baseline/`](week1_baseline/README.md): the baseline agent
-  (**boukensha**), built step by step
-- [`week2_capable/`](week2_capable/README.md): the instrumented agent, its
-  gateway, the [`observatory/`](week2_capable/observatory/), the benchmark
-  harness, and the Week 3 capability work, which lives here rather than in a
-  folder of its own
-- [`docs/`](docs/): plans, technical documentation, and the weekly journal
-
-## Documentation
-
-The pre-week experiments set the direction: everything moved from the model
-into code became dependable even on a small model, so the agent runs on a
-custom agentic loop rather than a coding harness.
-
-- [Week 1 architecture](docs/plans/week1_baseline/architecture.md): the
-  system being built, its components, and the build path
-- [Architecture exploration](docs/explore_architectures.md): the pre-week
-  experiments and their conclusions
-- [Technical journal](docs/journal/): one entry per week of the bootcamp
-- [Reports](docs/reports/): the measured results, kept apart from the
-  conclusions drawn from them
-- [Plans](docs/plans/): the working plans each build executes from
+The capability work lives under `week2_capable/` rather than a folder of its
+own, because the graded layout fixes that name.
 
 ## Status
 
-Weeks 0 to 3 are complete.
-
-- Week 0 chose the architecture: everything moved from the model into code
-  became dependable on a small model.
-- Week 1 built the agent as a custom loop.
-- Week 2 made it observable, through an instrumented gateway and the
-  [Observatory](week2_capable/observatory/).
-- Week 3 built five switchable capabilities and measured them against a
-  control. The
-  [capability matrix](docs/reports/week3_capability_matrix.md) records what
-  they were worth, and
-  [the journal](docs/journal/3_capable.md) records what the week taught.
-
-The mission the project set itself, finding and killing the Massive Minotaur
-from a cold start, is not solved.
+Weeks 0 to 3 are complete. The mission the project set itself, finding and
+killing the Massive Minotaur from a cold start, is not solved. Locating the
+target, preparing for it, and holding the agent's attention on the mission are
+all still open.
