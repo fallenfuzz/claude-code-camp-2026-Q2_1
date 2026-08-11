@@ -4,6 +4,14 @@ Week 2 makes the agent visible. The week 1 agent plays the same MUD, but
 every decision it takes is now recorded as typed evidence, served over a
 read API, and shown on screens a person can read.
 
+## Watch the Observatory
+
+[![Boukensha Observatory following an agentic adventure](observatory/docs/demo.gif?raw=true)](https://youtu.be/p8FFp4wVf3I)
+
+*Follow an agentic player from launch into the live world, then inspect its
+retained evidence, spatial replay, cost, experiments, knowledge, and operator
+guidance. Select the preview for the full narrated walkthrough.*
+
 Five packages, each with its own README:
 
 | Package | What it is |

@@ -275,6 +275,33 @@ The next knowledge design should therefore separate three layers:
 The question is no longer how much information the agent can be given. It is
 whether each item changes the decision the agent must make now.
 
+### 8. What this project taught
+
+About building an agent:
+
+- Anything put in front of a model becomes an instruction. A coverage count
+  meant as a readout became the objective, and the agent walked until its
+  budget ran out.
+- Attention is scarcer than information. The same summary that helped a lost
+  agent made a found one four times slower.
+- Automation makes whatever it is pointed at efficient. The best explorer
+  built here was the worst at the mission.
+- Aggregates cannot show whether an agent understood. Two thirds fewer calls
+  and zero deaths described a blind explorer circling one neighbourhood.
+- Memory needs identity before it needs volume. Knowledge that cannot be tied
+  to the same place across runs is a pile rather than a map.
+
+About building with agents:
+
+Working with LLM harnesses from first principles proved hard to keep in
+check, and hard to keep control of the code as it unfolds and grows into a
+monster. Leaving the work to agents created a great deal of mess and cost
+about five days in total, restarted at different points. It also revealed
+that having one model review another's work is crucial for catching
+problems, even when both are the same model. Building agents, and keeping
+orchestration, evaluation and observability coherent at every level of
+detail, is a major challenge. The experience of this project was worth it.
+
 ## Technical Conclusions
 
 - Repeated cold attempts produced a stable failure: the target was never seen,

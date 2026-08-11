@@ -6,6 +6,8 @@ The Observatory is the operator surface for Boukensha. It is built on the
 retained Python data layer, typed evidence contracts, and read API. The local supervisor API adds typed start, stop, and
 agent-message actions without changing the evidence boundary.
 
+[Watch the full narrated Observatory walkthrough on YouTube.](https://youtu.be/p8FFp4wVf3I)
+
 ```mermaid
 flowchart LR
     R["Retained evidence API"] --> W["Observatory web"]
