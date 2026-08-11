@@ -187,8 +187,9 @@ observatory:
 #   ANTHROPIC_API_KEY=...   GEMINI_API_KEY=...   OPENAI_API_KEY=...
 #   OLLAMA_API_KEY=...      (ollama local needs no key)
 #   MUD_ADMIN_PASSWORD=...
-#   MUD_PASSWORD=...        (poucet profile above)
-#   MUD_PASSWORD_TESTER=... (example tester profile above)
+#   MUD_PASSWORD=...         (poucet profile above)
+#   MUD_PASSWORD_ELENOR=...  (elenor profile above)
+#   MUD_PASSWORD_TESTER=...  (example tester profile above)
 # A player secret may instead live in .boukensha/profiles/<profile>/.env
 # under the profile's configured password_env name.
 

@@ -83,7 +83,8 @@ First run, in order:
    | `GEMINI_API_KEY` | the gemini provider |
    | `OPENAI_API_KEY` | the openai provider |
    | `OLLAMA_API_KEY` | the ollama_cloud provider (local ollama needs none) |
-   | `MUD_PASSWORD` | example player-profile password source |
+   | `MUD_PASSWORD` | the `poucet` player-profile password source |
+   | `MUD_PASSWORD_ELENOR` | the `elenor` player-profile password source |
 
    A player secret may instead live in
    `.boukensha/profiles/<profile>/.env`. The public character and its

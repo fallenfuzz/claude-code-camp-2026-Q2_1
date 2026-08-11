@@ -37,8 +37,9 @@ Five packages, each with its own README:
 
 The agent never talks to the game. It calls tools, the gateway owns the
 connection, and everything either of them does is written to
-`.boukensha` as typed records. The Observatory only ever reads those
-records, which is why watching a run cannot change it.
+`.boukensha` as typed records. Live and Sessions render those retained records,
+so viewing a run cannot change it. Start, stop, and Message agent are separate
+authenticated control actions.
 
 ## Running it
 
@@ -79,18 +80,19 @@ To play without the web, run the agent on its own:
 
 ## Tests
 
-Each package carries its own suite and all four stay green.
+Each package carries its own suite.
 
 ```bash
-uv run --project week2_capable/agent pytest
-uv run --project week2_capable/gateway pytest
-uv run --project week2_capable/observatory pytest
-uv run --project week2_capable/benchmark pytest
+uv run --project week2_capable/agent pytest week2_capable/agent/tests
+uv run --project week2_capable/gateway pytest week2_capable/gateway/tests
+uv run --project week2_capable/observatory pytest week2_capable/observatory/tests
+uv run --project week2_capable/benchmark pytest week2_capable/benchmark/tests
+uv run --project week2_capable/log_viewer pytest week2_capable/log_viewer/tests
 cd week2_capable/observatory/web && npm test
 ```
 
 ## Where the data lives
 
-`.boukensha` at the repository root, never committed: player profiles,
-one directory per session holding its journal and agent log, benchmark
-attempts, and `settings.yaml` for durable non-secret policy.
+`.boukensha` at the repository root holds committed non-secret policy and
+examples. Runtime player profiles, per-session journals and agent logs,
+benchmark attempts, registries, locks, and secrets remain untracked.

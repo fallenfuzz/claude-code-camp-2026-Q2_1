@@ -161,7 +161,7 @@ the `capabilities.knowledge` settings flag.
 `capabilities.economy` settings flag.
 
 - The model records recognized services (bank, shop, guild, fountain,
-  food, grinding, healer) through `note_service`; the store keeps them as
+  food, grinding, healer) through `note_service`. The store keeps them as
   belief facts at the current place.
 - `bank_surplus` deposits gold above the configurable carry ceiling at a
   recorded bank, travelling there over the learned map, and declines with
@@ -279,6 +279,7 @@ The matching secrets may live in the shared `.env` or in a profile-specific
 | Secret | Used by |
 | --- | --- |
 | `MUD_PASSWORD` | Example `poucet` profile |
+| `MUD_PASSWORD_ELENOR` | Example `elenor` profile |
 | `MUD_PASSWORD_TESTER` | Example `tester` profile |
 | `MUD_ADMIN_PASSWORD` | One-shot administrator reset child |
 

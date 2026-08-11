@@ -5,15 +5,15 @@ evidence stays under `.boukensha/benchmarks/` and is excluded from Git.
 
 ```mermaid
 flowchart LR
-  P["five capability flags"] --> A["six arms on one mission"]
+  P["three measured capabilities"] --> A["six arms on one mission"]
   A --> M["matrix report<br/>calls, cost, deaths"]
   M --> D["decision rule<br/>fixed before the runs"]
 ```
 
 ## Question
 
-Which of the five capabilities improve the mission enough to be turned on by
-default, measured rather than argued?
+Which of the three measured capabilities improve the mission enough to be
+turned on by default, measured rather than argued?
 
 ## Method
 

@@ -119,6 +119,5 @@ because the graded layout fixes that name.
 ## Status
 
 Weeks 0 to 3 are complete. The mission is unsolved: locating the target,
-preparing for it, and keeping the agent's attention on it are all open. Two of
-the five capabilities were never measured, and the intermediate missions that
-would rank them were never built.
+preparing for it, and keeping the agent's attention on it are all open. Economy
+and campaign were not measured.

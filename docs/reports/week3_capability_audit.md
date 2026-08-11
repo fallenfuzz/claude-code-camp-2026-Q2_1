@@ -80,11 +80,11 @@ shape, so the reflexes are not the only explanation.
   sweeping, because pressing sweep again was the only informed action
   available.
 - No sighting alarm exists. Sweeps do not stop when the mission target
-  is seen and their reports omit creatures; the intended alarm through
+  is seen and their reports omit creatures. The intended alarm through
   the readiness line was disabled by the envelope defect. A swept-past
   target would be recorded silently.
 - No game strategy is implemented. The phase gate evaluates health and
-  sighting only; level, equipment, skills, and gold gate nothing. The
+  sighting only. Level, equipment, skills, and gold gate nothing. The
   preparation planner, authored rules, consider ladder, and grinding
   grounds from the plan were not built. The week 0 play skill already
   expressed the needed strategy in prose and has no carrier in this
