@@ -128,10 +128,6 @@ class TestEveryCeilingCanBeSetAgentWide(unittest.TestCase):
         self.assertEqual(Player.DEFAULT_MAX_TURN_COST, Player.max_turn_cost({}))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestCapabilities(unittest.TestCase):
     def _config(self, text: str) -> Config:
         self._tmp = tempfile.TemporaryDirectory()
@@ -171,3 +167,7 @@ class TestCapabilities(unittest.TestCase):
         cfg = self._config("tasks: {}\n")
         with self.assertRaises(ConfigError):
             cfg.capability("telepathy")
+
+
+if __name__ == "__main__":
+    unittest.main()
