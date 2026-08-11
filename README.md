@@ -1,61 +1,123 @@
 # claude-code-camp-2026-Q2
 
-A Player Journey Agent for tbaMUD: an AI agent that plays a text MUD like a
-real player, maps the world, tracks its progression, and reports where players
-get confused, blocked, bored or overpowered.
+An AI agent built from first principles, and a text MUD used as the hard
+environment to find out what actually makes one capable.
 
-## Why
+The agent has no framework under it. It owns its loop, its prompt, its tools,
+its context and its budget. It plays tbaMUD, a real multiplayer game with
+mazes, darkness, hunger and monsters that kill it, on a small model, because
+an agent that only works on the largest model is not an answer to anything.
+Every byte it sends and receives is retained as typed evidence, so what it did
+and why can be read back rather than guessed at.
 
-Game studios lose players to friction they cannot see. An agent that actually
-plays the game surfaces the journey a new player lives: where it gets lost,
-what kills it, when it gets bored. tbaMUD (CircleMUD) is the proving ground
-before the agent faces a private game world.
+[![Boukensha Observatory following an agentic adventure](week2_capable/observatory/docs/demo.gif?raw=true)](https://youtu.be/p8FFp4wVf3I)
 
-## Getting started
+*An agent launched into the live world, then its retained evidence, spatial
+replay, cost, experiments and knowledge. Select the preview for the narrated
+walkthrough.*
 
-1. **Run the MUD server** (Docker required):
+## The question, four weeks of it
 
-   ```bash
-   cd week0_explore/infrastructure
-   docker compose up -d
-   ```
+| | Asked | Found |
+| --- | --- | --- |
+| Week 0 | What is the cheapest architecture that can do this at all | An agent file and a bundled skill hit the same wall. The loop has to be owned |
+| Week 1 | Can that loop be built from nothing | Yes. Typed messages, a tool host, five model providers, context and cost, in one loop |
+| Week 2 | What is it actually doing | Nothing is knowable without owning the wire, so every layer became evidence |
+| Week 3 | What makes it capable | Not more knowledge. Attention was the scarce thing, not information |
 
-   The game is then live on `telnet localhost 4000`.
+The mission set for the agent is to find and kill a specific strong monster in
+an unexplored world, without dying or spending the budget wandering. It is not
+solved. What the attempts revealed is the substance of this repository.
 
-2. **Configure**: settings and secrets live in [`.boukensha/`](.boukensha/).
-   Copy `.boukensha/.env.example` to `.boukensha/.env` and fill in your keys.
+## What is here
 
-3. **Run the agent** (current step) from [`week1_baseline/`](week1_baseline/):
+```mermaid
+flowchart LR
+  M["tbaMUD"] <-- telnet --> G["gateway"]
+  G --> E[("retained evidence")]
+  G <-- MCP --> A["boukensha, the agent loop"]
+  A <-- REST --> L["model"]
+  E --> O["Observatory"]
+  E --> B["benchmark"]
+```
 
-   ```bash
-   bin/00_config
-   ```
+- **boukensha**, the agent. Its own loop over typed messages, a tool host, and
+  one interface to five model providers. It decides what to carry in context
+  and stops when the money runs out.
+- **The gateway**, the only thing that touches the game. It records every byte
+  in both directions and turns game text into typed observations, so a later
+  question is answered from evidence rather than by re-reading prose.
+- **The Observatory**, the operator surface. Watch a run live, then read its
+  story, spatial replay, cost, experiments and knowledge from that evidence.
+- **The benchmark**, which runs a mission repeatedly and judges the outcome
+  from the game's own output, never from what the agent claims about itself.
 
-## Repository structure
+## See it run
 
-- [`week0_explore/`](week0_explore/) — MUD infrastructure, world exploration,
-  the architecture experiments, the play-mud skill, and a realtime viewer for
-  watching the agent play ([`visualizer/`](week0_explore/visualizer/))
-- [`week1_baseline/`](week1_baseline/README.md) — the baseline agent
-  (**boukensha**), built step by step
-- `week2_capable/` — the capable agent, built on the baseline (upcoming)
-- [`docs/`](docs/) — plans, technical documentation, and the weekly journal
+Docker, [uv](https://docs.astral.sh/uv/) and Node are the prerequisites.
 
-## Documentation
+Start the game and set a model key:
 
-The pre-week experiments set the direction: everything moved from the model
-into code became dependable even on a small model, so the agent runs on a
-custom agentic loop rather than a coding harness.
+```bash
+cd week0_explore/infrastructure && docker compose up -d   # the game, port 4000
+cp .boukensha/.env.example .boukensha/.env                # then add your key
+```
 
-- [Week 1 architecture](docs/plans/week1_baseline/architecture.md) — the
-  system being built, its components, and the build path
-- [Architecture exploration](docs/explore_architectures.md) — the pre-week
-  experiments and their conclusions
-- [Technical journal](docs/journal/) — one entry per week of the bootcamp
-- [Plans](docs/plans/) — the working plans each build executes from
+Install the gateway and build the Observatory once:
+
+```bash
+uv tool install --editable ./week2_capable/gateway
+cd week2_capable/observatory && uv sync --extra dev
+cd web && npm ci && npm run build
+```
+
+The Observatory runs as two processes, the supervisor that starts and stops
+runs, and the host that serves the evidence and the page:
+
+```bash
+uv run --project week2_capable/observatory observatory-launcher   # port 8792
+./week2_capable/bin/observatory                                   # port 8787
+```
+
+Open <http://127.0.0.1:8787> and start a session from the launcher. Frontend
+work adds `npm run dev` on port 8791, which proxies to both.
+
+To run the agent in a terminal with no Observatory:
+
+```bash
+week2_capable/bin/agent
+```
+
+## What was learned
+
+The agent was made cheaper, safer and more thorough, and none of that made it
+better at its mission. Five capabilities were built. Survival, knowledge and
+navigation were measured against a control, and the configuration carrying the
+most knowledge was the slowest and the only one that failed to finish.
+
+The cause was not missing information. A progress counter shown as a readout
+became the objective the agent optimised, and the same summary that helped a
+lost agent made a found one walk four times as far.
+
+- [Technical journal](docs/journal/) records each week, including what failed
+- [Reports](docs/reports/) hold the measurements, apart from the conclusions
+- [Architecture exploration](docs/explore_architectures.md) explains why the
+  project owns its loop
+
+## Repository
+
+| Path | What it holds |
+| --- | --- |
+| [`week0_explore/`](week0_explore/) | The game infrastructure, world exploration, and the architecture experiments that chose the design |
+| [`week1_baseline/`](week1_baseline/README.md) | **boukensha**, the agent, built one step at a time |
+| [`week2_capable/`](week2_capable/README.md) | The gateway, the Observatory, the benchmark, and the capability work |
+| [`docs/`](docs/) | Plans, reports, and the weekly journal |
+
+The capability work sits under `week2_capable/` rather than its own folder,
+because the graded layout fixes that name.
 
 ## Status
 
-Pre-week complete: architectures explored, direction chosen. Week 1 in
-progress: building the baseline agent, step by step, in
-[`week1_baseline/`](week1_baseline/README.md).
+Weeks 0 to 3 are complete. The mission is unsolved: locating the target,
+preparing for it, and keeping the agent's attention on it are all open. Economy
+and campaign were not measured.

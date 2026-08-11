@@ -1,0 +1,244 @@
+:global(body.sessions-document) {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.shell {
+  --session-bg: var(--color-bg);
+  --session-surface: var(--color-surface);
+  --session-raised: var(--color-raised);
+  --session-soft: var(--color-soft);
+  --session-line: var(--color-line);
+  --session-line-strong: var(--color-line-strong);
+  --session-text: var(--color-text);
+  --session-muted: var(--color-muted);
+  --session-quiet: var(--color-quiet);
+  --session-cyan: var(--color-cyan);
+  --session-cyan-soft: var(--color-cyan-soft);
+  --session-amber: var(--color-amber);
+  --session-shadow: var(--shadow-popover);
+
+  min-height: calc(100vh - 62px);
+  display: flex;
+  flex-direction: column;
+  background: var(--session-bg);
+  color: var(--session-text);
+  font: inherit;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell *,
+.shell *::before,
+.shell *::after {
+  box-sizing: border-box;
+}
+
+.shell button,
+.shell input,
+.shell select {
+  font: inherit;
+}
+
+.shell button,
+.shell select {
+  color: inherit;
+}
+
+.viewSwitch button {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--session-muted);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.viewSpacer {
+  flex: 1;
+}
+
+.observatory {
+  min-height: 0;
+  flex: 1;
+}
+
+.runHeader {
+  border-bottom: 1px solid var(--session-line);
+  background: linear-gradient(
+    180deg,
+    var(--session-surface),
+    var(--session-bg)
+  );
+}
+
+.runHeaderInner {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) auto;
+  gap: 28px;
+  padding: 15px 0 13px;
+}
+
+.eyebrow {
+  color: var(--session-cyan);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.runCopy h1 {
+  margin: 2px 0 4px;
+  color: var(--session-text);
+  font-size: clamp(22px, 2.3vw, 28px);
+  line-height: 1.18;
+  letter-spacing: -.03em;
+}
+
+.runCopy p {
+  margin: 0;
+  color: var(--session-muted);
+  font-size: 14px;
+}
+
+.runMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(104px, 1fr));
+  align-self: center;
+  margin: 0;
+  border: 1px solid var(--session-line);
+  border-radius: 13px;
+  background: var(--session-surface);
+  overflow: hidden;
+}
+
+.runMetric {
+  min-width: 110px;
+  padding: 9px 14px;
+  border-right: 1px solid var(--session-line);
+}
+
+.runMetric:last-child {
+  border: 0;
+}
+
+.runMetric dt {
+  color: var(--session-quiet);
+  font-size: 12px;
+}
+
+.runMetric dd {
+  margin: 0;
+  color: var(--session-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.costMetric dd {
+  color: var(--session-amber);
+}
+
+.viewBar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 max(24px, calc((100% - 1180px) / 2));
+  border-bottom: 1px solid var(--session-line);
+  background: var(--session-bg);
+}
+
+.viewSwitch {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--session-line);
+  border-radius: 11px;
+  background: var(--session-surface);
+}
+
+.viewSwitch button {
+  min-width: 92px;
+  padding: 7px 13px;
+}
+
+.viewSwitch button.active {
+  color: var(--session-text);
+  background: var(--session-soft);
+  border-color: var(--session-line-strong);
+}
+
+.viewDescription {
+  margin: 0;
+  color: var(--session-muted);
+}
+
+.viewDescription strong {
+  color: var(--session-text);
+}
+
+.search {
+  width: 260px;
+  padding: 9px 12px;
+  border: 1px solid var(--session-line);
+  border-radius: 9px;
+  outline: none;
+  background: var(--session-surface);
+  color: var(--session-text);
+}
+
+.search::placeholder {
+  color: var(--session-quiet);
+}
+
+.viewContent {
+  min-height: 0;
+}
+
+.workspaceState {
+  min-height: calc(100vh - 62px);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 40px;
+  background: var(--session-bg);
+  color: var(--session-muted);
+  text-align: center;
+}
+
+.workspaceState strong {
+  color: var(--session-text);
+  font-size: 18px;
+}
+
+.workspaceState p {
+  max-width: 440px;
+  margin: 0;
+}
+
+.workspaceState.error {
+  color: #ff8a82;
+}
+
+@media (max-width: 900px) {
+  .runHeaderInner {
+    width: calc(100% - 28px);
+    grid-template-columns: 1fr;
+  }
+
+  .viewBar {
+    padding: 8px 14px;
+    flex-wrap: wrap;
+  }
+
+  .viewDescription {
+    display: none;
+  }
+
+  .search {
+    width: auto;
+    flex: 1;
+  }
+}

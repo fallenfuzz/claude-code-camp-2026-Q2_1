@@ -1,6 +1,6 @@
 # boukensha configuration. Every option is shown here: active values are set,
-# optional ones are commented with their default. Secrets (provider API keys,
-# the MUD password) belong in .boukensha/.env, never in this file.
+# optional ones are commented with their default. Secrets belong only in
+# .boukensha/.env. All durable non-secret configuration belongs here.
 
 # === tasks: one entry per task. The agent plays the `player` task. ==========
 tasks:
@@ -10,6 +10,7 @@ tasks:
     # override).
     provider: anthropic
     model: claude-haiku-4-5
+    #model: claude-sonnet-5
     #provider: gemini
     #model: gemini-3.5-flash
     #provider: openai
@@ -35,43 +36,201 @@ tasks:
     max_turn_cost: 0.50          # per-turn spend ceiling in USD
     compaction_threshold: 0.85   # window fraction that triggers auto-compaction
 
-# === agent: agent-wide defaults for the four limits above. ==================
-# A per-task value overrides these; these override the code defaults.
+# === agent: agent-wide defaults for the five limits above. ==================
+# A per-task value overrides these, then these override the code defaults.
 #agent:
 #  max_iterations: 25
 #  max_output_tokens: 1024
 #  max_turn_tokens: 60000
+#  max_turn_cost: 0
 #  compaction_threshold: 0.85
 
 # === mcp_servers: every tool the agent has comes from an entry here. ========
-# boukensha ships no built-in tools. The mud-manager gem
-# (week0_explore/mud_manager: gem build + gem install) provides `mud-manager`
-# on PATH.
+# boukensha ships no built-in tools. The installed Week 2 gateway command
+# provides the game surface.
 mcp_servers:
   mud:
-    command: mud-manager         # an executable on PATH
-    args: ["--mcp"]             # arguments passed to it
+    command: boukensha-gateway
+    # Gateway behavior is configured once in the gateway block below. Args are
+    # reserved for one-off command-line diagnostics.
+    args: []
+
     prefix: tbamud               # agent-side tool-name prefix (tbamud__look)
     required: true               # true: a failed spawn stops boot. false: warn and continue tool-less
-    #timeout: 30                 # per-call ceiling in seconds (default 30)
-    #allow: [look, move, attack] # if set, only these tool names register
-    #deny: [shutdown]            # tool names to drop
-    env:                          # environment for the spawned server
-      MUD_HOST: localhost
-      MUD_PORT: 4000
-      MUD_NAME: poucet
-      MUD_PASSWORD: poucette      # a secret. Prefer MUD_PASSWORD in .boukensha/.env
+    # Per-call ceiling in seconds. The agent gives up waiting here, and the
+    # gateway reads the same number to bound its own routines below it, so a
+    # sweep reports rather than being cut off. A real key, not a comment: an
+    # attempt's settings are rebuilt by a YAML parse, which keeps no comments.
+    timeout: 30
 
-# === mud: optional, feeds only the /mud info command's readout. =============
-# The real connection is mcp_servers.mud.env above. Omit this unless you want
-# the /mud command to report a target.
-#mud:
-#  host: localhost
-#  port: 4000
-#  username: poucet
+    # These are agent-side visibility filters applied after MCP discovery.
+    # They do not grant gateway permission. Names are the server's unprefixed
+    # tool names. With neither key set, every tool advertised by the gateway
+    # profile is registered with the agent.
+    #allow: [look, move, attack]
+    #deny: [tell, channel_say]
+
+    result_mode: full            # raw, minimal or full model-facing results
+
+# === gateway: game connection, evidence, tools and local API. ===============
+gateway:
+  connection:
+    host: localhost
+    port: 4000
+    # Default player identity for normal gateway and benchmark launches.
+    # Override a configured identity with --player-profile. The benchmark also
+    # accepts a one-off --player with its password read from standard input.
+    player_profile: poucet
+
+  # Public player identities. Password values stay out of this file. Each
+  # profile names the environment variable holding its password.
+  players:
+    poucet:
+      character: poucet
+      password_env: MUD_PASSWORD
+    elenor:
+      character: Elenor
+      password_env: MUD_PASSWORD_ELENOR
+    # tester:
+    #   character: tester
+    #   password_env: MUD_PASSWORD_TESTER
+
+  # Fallback for a directly launched gateway. Agent launches always use their
+  # isolated profiles/<player>/sessions/<session>/gateway.db.
+  journal: .boukensha/gateway/gateway.db
+
+  surface:
+    # One stable projection for the whole MCP session. Named presets:
+    # direct-full, direct-core, hybrid-full and hybrid-core.
+    profile: direct-full
+
+    # Fine-grained changes to the selected preset. Capability names are the
+    # unprefixed names advertised by the gateway. Disable wins over enable.
+    # Valid typed capabilities: attack, cast_spell, channel_say, check,
+    # consider, consume_item, drop_item, equip_item, examine, flee, get_item,
+    # look, move, mud_status, poll, practice, put_item, save_character, say,
+    # set_position, shop, skill_strike, tell, track and use_magic_item.
+    enable: []
+    disable: []
+    #enable: [cast_spell, practice]
+    #disable: [tell, channel_say]
+
+    # Raw MUD text bypasses the typed command contract. It is registered but
+    # denied by default and requires a reason when explicitly enabled.
+    allow_raw: true
+
+  api:
+    host: 127.0.0.1
+    port: 8765
+
+  admin:
+    # Immortal identity only. Reset targets are per operation and are never
+    # configured here.
+    character: admin
+    password_env: MUD_ADMIN_PASSWORD
+
+  reset:
+    # Wait for the selected mortal command to finish before failing safely.
+    pause_timeout_seconds: 15
+    # Bound the one-shot privileged child, including its MUD round trips.
+    child_timeout_seconds: 30
+    # Bound a launcher or CLI request waiting on the local control endpoint.
+    client_timeout_seconds: 45
+
+# === observatory: evidence sources and local product policy. ================
+observatory:
+  # Built capabilities can be hidden by local policy. Leave the list empty to
+  # expose every capability whose dependencies are available.
+  disabled_features: [
+    # copilot-model,
+    # benchmark-execution
+  ]
+
+  benchmark:
+    # Recorded experiment evidence. Relative paths resolve from the repository
+    # root. OBSERVATORY_BENCHMARK_ROOT remains a one-run override.
+    path: .boukensha/benchmarks
+
+  experiments:
+    # Paid execution is off by default. Enabling it only makes the server-side
+    # runner available. Every job still requires an explicit per-run
+    # confirmation after validation and maximum-spend preview.
+    execution_enabled: false
+    # Hard ceiling accepted by the workbench, independent of a smaller
+    # definition-level cap.
+    max_spend_cap_usd: 10.00
+    # Runtime definitions, jobs, and queue receipts. This directory is
+    # untracked and contains no credentials.
+    state_path: .boukensha/experiments
+
+  world:
+    # Observer-only CircleMUD atlas. Relative paths resolve from the repository
+    # root. BOUKENSHA_WORLD remains a one-run override.
+    path: week0_explore/circlemud-world-parser/assets/wld
+
+  copilot:
+    # Local deterministic Ask and structured search work without this model.
+    # The model can only translate an unmatched question into the same
+    # allowlisted, scope-checked query language. It cannot read evidence or
+    # answer directly. Each request also requires explicit UI opt-in.
+    model: claude-haiku-4-5
+    endpoint: https://api.anthropic.com/v1/messages
+    # Local lifetime ceiling for optional Observatory model translation.
+    spend_cap_usd: 0.25
+    # USD per million tokens for the pinned model. Update these rates when the
+    # selected model or its provider pricing changes.
+    input_rate_per_million: 1.00
+    output_rate_per_million: 5.00
 
 # === Secrets live in .boukensha/.env (not here) =============================
-# One per provider you use, plus the MUD password:
+# One per provider you use, plus administrator and player-profile passwords:
 #   ANTHROPIC_API_KEY=...   GEMINI_API_KEY=...   OPENAI_API_KEY=...
 #   OLLAMA_API_KEY=...      (ollama local needs no key)
-#   MUD_PASSWORD=...
+#   MUD_ADMIN_PASSWORD=...
+#   MUD_PASSWORD=...         (poucet profile above)
+#   MUD_PASSWORD_ELENOR=...  (elenor profile above)
+#   MUD_PASSWORD_TESTER=...  (example tester profile above)
+# A player secret may instead live in .boukensha/profiles/<profile>/.env
+# under the profile's configured password_env name.
+
+# === capabilities: the week 3 capability master flags. ======================
+# Each capability has exactly one flag, and every number it needs is a setting
+# under its block. A capability absent here is off, and off means behavior
+# byte-identical to the measured baseline.
+capabilities:
+  navigation:
+    enabled: false
+    # Seconds held back from the call's ceiling, so a step already walking
+    # when the deadline passes still finishes inside the call. The slowest
+    # four-command step measured is 1.21s. The rest is insurance against
+    # what one quiet local run cannot show.
+    deadline_margin: 4.0
+
+  knowledge:
+    # Off until a run proves what turning it on does. Absent behaves the same
+    # as false, which is why the state block was never built and the authored
+    # rules in rules.yaml reached no system prompt.
+    # enabled: true
+
+    # Below this share of maximum health, resting is suggested before going
+    # on. The advice names the rule and the agent may overrule it.
+    fit_health_percent: 70
+
+    # Gold above this is worth banking, because what is carried is lost on
+    # death. The figure is what a rule quotes, not a limit anything enforces.
+    gold_carry_ceiling: 100
+
+    # A hunt's expected level, when a mission states one. Left unset because
+    # it is a property of the hunt rather than of the character, and an
+    # unset threshold makes the check say nothing rather than guess.
+    # hunt_level_floor: 5
+
+  survival:
+    enabled: true
+
+    # The work the game will do that the agent would otherwise pay a decision
+    # for. Brief is deliberately absent: it stops the game printing the room
+    # description on arrival, and the look that makes up for it lives in the
+    # navigation executor, so an arm with survival on and navigation off
+    # would lose room descriptions as well as gaining the conveniences.
+    game_toggles: ["autoloot", "autogold", "autodoor", "autokey", "autosac"]

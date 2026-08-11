@@ -1,0 +1,398 @@
+import {
+  render,
+  screen,
+} from "@testing-library/react";
+import {
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import type { WorldNode } from "../contracts";
+import {
+  LiveMapRoom,
+  roomStateClass,
+  sectorClass,
+} from "./LiveMapRoom";
+
+const onSelect = vi.fn();
+const rooms = [
+  room("a", "city"),
+  room("b", "inside"),
+  room("c", "forest"),
+];
+
+describe("live map room rendering", () => {
+  it("derives sector classes from atlas sectors", () => {
+    expect(sectorClass("city")).toBe("is-sector-city");
+    expect(sectorClass("urban")).toBe("is-sector-urban");
+    expect(sectorClass("inside")).toBe("is-sector-inside");
+    expect(sectorClass("interior")).toBe("is-sector-interior");
+    expect(sectorClass("field")).toBe("is-sector-field");
+    expect(sectorClass("open-land")).toBe("is-sector-open-land");
+    expect(sectorClass("forest")).toBe("is-sector-forest");
+    expect(sectorClass("woodland")).toBe("is-sector-woodland");
+    expect(sectorClass("hills")).toBe("is-sector-hills");
+    expect(sectorClass("mountain")).toBe("is-sector-mountain");
+    expect(sectorClass("highland")).toBe("is-sector-highland");
+    expect(sectorClass("water (swimmable)")).toBe("is-sector-water");
+    expect(sectorClass("underwater")).toBe("is-sector-water");
+    expect(sectorClass("water")).toBe("is-sector-semantic-water");
+    expect(sectorClass("route")).toBe("is-sector-route");
+    expect(sectorClass("underground")).toBe("is-sector-underground");
+    expect(sectorClass("commerce")).toBe("is-sector-commerce");
+    expect(sectorClass("civic")).toBe("is-sector-civic");
+    expect(sectorClass("sacred")).toBe("is-sector-sacred");
+    expect(sectorClass("special")).toBe("is-sector-special");
+    expect(sectorClass(undefined)).toBe("is-sector-neutral");
+  });
+
+  it("applies the state priority combat, current, selected, beacon", () => {
+    expect(roomStateClass({
+      combat: true,
+      current: true,
+      selected: true,
+      beacon: true,
+    })).toBe("is-combat");
+    expect(roomStateClass({
+      combat: false,
+      current: true,
+      selected: true,
+      beacon: true,
+    })).toBe("is-current");
+    expect(roomStateClass({
+      combat: false,
+      current: false,
+      selected: true,
+      beacon: true,
+    })).toBe("is-selected");
+    expect(roomStateClass({
+      combat: false,
+      current: false,
+      selected: false,
+      beacon: true,
+    })).toBe("is-beacon");
+  });
+
+  it("renders a square-aligned selected-room halo", () => {
+    render(
+      <svg>
+        <LiveMapRoom
+          node={rooms[0]}
+          point={{ x: 0, y: 0 }}
+          current={false}
+          selected
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+
+    const selectedRoom = screen.getByRole("button", {
+      name: /Room a/,
+    });
+    const halo = selectedRoom.querySelector(".live-selected-room-halo");
+    expect(halo?.tagName.toLowerCase()).toBe("rect");
+    expect(halo).toHaveAttribute("x", "-6");
+    expect(halo).toHaveAttribute("y", "-6");
+    expect(halo).toHaveAttribute("width", "136");
+    expect(halo).toHaveAttribute("height", "56");
+    expect(selectedRoom).toHaveClass("is-selected");
+  });
+
+  it("keeps the selection affordance when the selected room is current", () => {
+    render(
+      <svg>
+        <LiveMapRoom
+          node={rooms[0]}
+          point={{ x: 0, y: 0 }}
+          current
+          selected
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+
+    const selectedRoom = screen.getByRole("button", {
+      name: /Agent in Room a/,
+    });
+    expect(selectedRoom).toHaveClass("is-current", "is-selected");
+    expect(
+      selectedRoom.querySelector(".live-selected-room-halo"),
+    ).not.toBeNull();
+  });
+
+  it("re-renders exactly the old and new current rooms", () => {
+    const view = renderRooms({
+      currentId: "a",
+      selectedId: null,
+      combat: false,
+    });
+    view.rerender(roomSet({
+      currentId: "b",
+      selectedId: null,
+      combat: false,
+    }));
+
+    expect(renderCounts()).toEqual({ a: 2, b: 2, c: 1 });
+  });
+
+  it("re-renders exactly the old and new selected rooms", () => {
+    const view = renderRooms({
+      currentId: null,
+      selectedId: "a",
+      combat: false,
+    });
+    view.rerender(roomSet({
+      currentId: null,
+      selectedId: "b",
+      combat: false,
+    }));
+
+    expect(renderCounts()).toEqual({ a: 2, b: 2, c: 1 });
+  });
+
+  it("re-renders exactly the current room when combat changes", () => {
+    const view = renderRooms({
+      currentId: "a",
+      selectedId: null,
+      combat: false,
+    });
+    view.rerender(roomSet({
+      currentId: "a",
+      selectedId: null,
+      combat: true,
+    }));
+
+    expect(renderCounts()).toEqual({ a: 2, b: 1, c: 1 });
+  });
+
+  it("omits a visit badge at one visit and renders the exact retained count", () => {
+    const view = render(
+      <svg>
+        <LiveMapRoom
+          node={rooms[0]}
+          point={{ x: 0, y: 0 }}
+          current={false}
+          selected={false}
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+    expect(view.container.querySelector(".live-map-visit-badge")).toBeNull();
+
+    view.rerender(
+      <svg>
+        <LiveMapRoom
+          node={{ ...rooms[0], visits: 5 }}
+          point={{ x: 0, y: 0 }}
+          current={false}
+          selected={false}
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+    const badge = view.container.querySelector(".live-map-visit-badge");
+    expect(badge).toHaveAttribute("data-visits", "5");
+    expect(badge).toHaveTextContent("×5");
+  });
+
+  it("distinguishes traversed and frontier vertical glyphs", () => {
+    const view = render(
+      <svg>
+        <LiveMapRoom
+          node={rooms[0]}
+          point={{ x: 0, y: 0 }}
+          current={false}
+          selected={false}
+          combat={false}
+          beacon={false}
+          verticalMarkers={[
+            { direction: "up", state: "traversed" },
+            { direction: "down", state: "frontier" },
+          ]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+
+    const up = view.container.querySelector(
+      '.live-map-vertical-marker[data-direction="up"]',
+    );
+    const down = view.container.querySelector(
+      '.live-map-vertical-marker[data-direction="down"]',
+    );
+    expect(up).toHaveClass("is-traversed");
+    expect(up).toHaveTextContent("▲");
+    expect(down).toHaveClass("is-frontier");
+    expect(down).toHaveTextContent("▼");
+  });
+
+  it("draws only evidence-backed mob and object corner badges", () => {
+    const node = {
+      ...rooms[0],
+      mob_sightings: [{
+        name: "a large kobold",
+        count: 2,
+        first_seq: 2,
+        last_seq: 4,
+        evidence: [2, 4],
+      }],
+      object_sightings: [{
+        name: "a brass key",
+        count: 1,
+        first_seq: 3,
+        last_seq: 3,
+        evidence: [3],
+      }],
+    };
+    const view = render(
+      <svg>
+        <LiveMapRoom
+          node={node}
+          point={{ x: 0, y: 0 }}
+          current={false}
+          selected={false}
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+
+    const mob = view.container.querySelector(
+      ".live-map-content-badge.is-mob",
+    );
+    const object = view.container.querySelector(
+      ".live-map-content-badge.is-object",
+    );
+    expect(mob).toHaveTextContent("☠");
+    expect(mob?.querySelector("circle")).toHaveAttribute("cx", "122");
+    expect(mob?.querySelector("circle")).toHaveAttribute("cy", "0");
+    expect(mob?.querySelector("circle")).toHaveAttribute("r", "7");
+    expect(object).toHaveTextContent("◇");
+    expect(object?.querySelector("circle")).toHaveAttribute("cx", "-2");
+    expect(object?.querySelector("circle")).toHaveAttribute("cy", "42");
+    expect(screen.getByRole("button", {
+      name: /1 mob sighting, 1 object sighting/,
+    })).toBeInTheDocument();
+  });
+
+  it("keeps the mob corner and shifts a repeat badge left", () => {
+    const view = render(
+      <svg>
+        <LiveMapRoom
+          node={{
+            ...rooms[0],
+            visits: 5,
+            mob_sightings: [{
+              name: "a sewer rat",
+              count: 1,
+              first_seq: 4,
+              last_seq: 4,
+              evidence: [4],
+            }],
+          }}
+          point={{ x: 0, y: 0 }}
+          current
+          selected={false}
+          combat={false}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      </svg>,
+    );
+
+    const visit = view.container.querySelector(".live-map-visit-badge");
+    const mob = view.container.querySelector(
+      ".live-map-content-badge.is-mob",
+    );
+    expect(visit).toHaveAttribute("data-shifted", "true");
+    expect(visit?.querySelector("circle")).toHaveAttribute("cx", "108");
+    expect(mob?.querySelector("circle")).toHaveAttribute("r", "8");
+  });
+});
+
+type RoomSetState = {
+  currentId: string | null;
+  selectedId: string | null;
+  combat: boolean;
+};
+
+function renderRooms(state: RoomSetState) {
+  return render(roomSet(state));
+}
+
+function roomSet(state: RoomSetState) {
+  return (
+    <svg>
+      {rooms.map((node, index) => (
+        <LiveMapRoom
+          key={node.id}
+          node={node}
+          point={{ x: index * 100, y: 0 }}
+          current={node.id === state.currentId}
+          selected={node.id === state.selectedId}
+          combat={state.combat && node.id === state.currentId}
+          beacon={false}
+          verticalMarkers={[]}
+          onSelect={onSelect}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function renderCounts(): Record<string, number> {
+  return Object.fromEntries(
+    rooms.map(({ id }) => {
+      const element = screen.getByRole("button", {
+        name: new RegExp(`Room ${id}`),
+      });
+      return [id, Number(element.getAttribute("data-render-count"))];
+    }),
+  );
+}
+
+function room(id: string, sector: string): WorldNode {
+  return {
+    id,
+    place: id.charCodeAt(0),
+    title: `Room ${id}`,
+    description: null,
+    atlas: {
+      vnum: id.charCodeAt(0),
+      zone_id: 30,
+      zone_label: "Midgaard",
+      sector,
+      atlas_digest: "fixture",
+      confidence: "high",
+      evidence: ["fixture"],
+    },
+    exits: [],
+    mobs: [],
+    objects: [],
+    mob_sightings: [],
+    object_sightings: [],
+    visits: 1,
+    evidence: [1],
+    first_seq: 1,
+    last_seq: 1,
+    state: "observed",
+    confidence: "tracked",
+    method: "fixture",
+  };
+}

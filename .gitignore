@@ -4,6 +4,13 @@
 # Environment / secrets
 .env
 .env.local
+**/.boukensha/profiles/
+.boukensha/registry.db*
+.boukensha/locks/
+.boukensha/gateway/
+**/.boukensha/benchmarks/
+.boukensha/observatory/
+.boukensha/experiments/
 
 # macOS
 .DS_Store
@@ -26,8 +33,12 @@ settings.local.json
 # Claude Code browser tool artifacts
 .playwright-mcp/
 
+# Generated Observatory showcase media and narration
+.boukensha/showcase/
+
 # Internal working instructions, not repo content
 CLAUDE.md
+.coordination/
 
 # Per-step reference comparison notes, internal working docs
 **/COMPARISON.md
@@ -36,10 +47,31 @@ CLAUDE.md
 # Built Ruby gems (regenerate with gem build)
 *.gem
 
-# Internal working files (rework report + monitor feedback), not deliverables
+# Working notes, not deliverables
 reworks_report.md
 feedback_rework.md
+docs/plans/week3_capable/observatory_demo_video.md
 
-# The demo video lives on YouTube. GitHub does not render a committed mp4
+# Demo videos live on YouTube. GitHub does not render a committed mp4
 # inline, only the gif, so the bytes would buy a link and nothing else.
-week1_baseline/log_viewer/docs/demo.mp4
+*.mp4
+*.mov
+
+# Agent skill definitions live outside the graded tree
+.agents/
+
+# Observatory build and test output
+week2_capable/observatory/web/dist/
+week2_capable/observatory/web/coverage/
+week2_capable/observatory/web/playwright-report/
+week2_capable/observatory/web/test-results/
+
+# CircleMUD runtime state written by the container
+week0_explore/infrastructure/lib/
+
+# The perception training lab: an experiment, kept out of the graded tree.
+lab/
+PROGRESS.md
+
+# Accessibility and screenshot dumps taken while checking a page
+.playwright-mcp/
