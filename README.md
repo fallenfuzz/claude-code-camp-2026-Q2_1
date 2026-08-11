@@ -4,6 +4,14 @@ A Player Journey Agent for tbaMUD: an AI agent that plays a text MUD like a
 real player, maps the world, tracks its progression, and reports where players
 get confused, blocked, bored or overpowered.
 
+## Watch it
+
+[![Boukensha Observatory following an agentic adventure](week2_capable/observatory/docs/demo.gif?raw=true)](https://youtu.be/p8FFp4wVf3I)
+
+*An agent launched into the live world, then its retained evidence, spatial
+replay, cost, experiments and knowledge. Select the preview for the narrated
+walkthrough.*
+
 ## Why
 
 Game studios lose players to friction they cannot see. An agent that actually
@@ -25,13 +33,24 @@ before the agent faces a private game world.
 2. **Configure**: settings and secrets live in [`.boukensha/`](.boukensha/).
    Copy `.boukensha/.env.example` to `.boukensha/.env` and fill in your keys.
 
-3. **Install the Week 2 gateway** as an isolated editable tool:
+3. **Install the gateway and the benchmark** as isolated editable tools:
 
    ```bash
    uv tool install --editable ./week2_capable/gateway
+   uv tool install --editable ./week2_capable/benchmark
    ```
 
-4. **Run the current agent**:
+4. **Watch it play**, which is the way this project is meant to be used:
+
+   ```bash
+   ./week2_capable/bin/observatory
+   ```
+
+   Open <http://127.0.0.1:8787>, start a session from the launcher, and the
+   Live view follows the agent as it plays. Sessions, Cost, Experiments and
+   Knowledge read the same retained evidence afterwards.
+
+5. **Or run the agent from the terminal**:
 
    ```bash
    week2_capable/bin/agent
@@ -41,6 +60,16 @@ before the agent faces a private game world.
    Every launch creates an isolated player session under
    `.boukensha/profiles/<player>/sessions/<session>/` and projects cumulative
    evidence into that player's `.boukensha/profiles/<player>/knowledge.db`.
+
+   Capabilities are off by default and switch on per run, which is how the
+   week 3 measurements were taken:
+
+   ```bash
+   uv run --no-project --env-file .boukensha/.env boukensha-e1 \
+     --spend --cap 0.90 --runs 3 --journey J1 --fresh-character \
+     --capability survival --capability knowledge \
+     --output-dir .boukensha/benchmarks/example
+   ```
 
    A benchmark or script can use the same launcher and verify a clean baseline
    before the first model call:
