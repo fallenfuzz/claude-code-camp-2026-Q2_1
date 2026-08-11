@@ -46,17 +46,38 @@ flowchart LR
 
 ## See it run
 
-Docker and [uv](https://docs.astral.sh/uv/) are the only prerequisites.
+Docker and [uv](https://docs.astral.sh/uv/) are the prerequisites, plus Node
+for the Observatory's frontend.
+
+Start the game and configure the model key:
 
 ```bash
-cd week0_explore/infrastructure && docker compose up -d   # the game, on port 4000
-cp .boukensha/.env.example .boukensha/.env                # then add your model key
+cd week0_explore/infrastructure && docker compose up -d   # the game, port 4000
+cp .boukensha/.env.example .boukensha/.env                # then add your key
+```
+
+Install the gateway, which the agent talks to, and build the Observatory once:
+
+```bash
 uv tool install --editable ./week2_capable/gateway
-./week2_capable/bin/observatory
+cd week2_capable/observatory && uv sync --extra dev
+cd web && npm ci && npm run build
+```
+
+The Observatory is two processes. Run them from the repository root in
+separate terminals, the supervisor that starts and stops runs, then the host
+that serves the evidence and the built page:
+
+```bash
+uv run --project week2_capable/observatory observatory-launcher   # port 8792
+./week2_capable/bin/observatory                                   # port 8787
 ```
 
 Open <http://127.0.0.1:8787>, start a session from the launcher, and the Live
-view follows the agent as it plays. To drive it from a terminal instead:
+view follows the agent as it plays. Working on the frontend adds a third
+process, `npm run dev`, which serves port 8791 and proxies to the other two.
+
+To drive the agent from a terminal instead, with no Observatory at all:
 
 ```bash
 week2_capable/bin/agent
