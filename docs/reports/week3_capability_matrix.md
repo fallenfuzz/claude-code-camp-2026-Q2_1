@@ -1,7 +1,10 @@
 # Week 3 capability matrix
 
 This report separates measurements from conclusions. Runtime JSONL and SQLite
-evidence stays under `.boukensha/benchmarks/` and is excluded from Git.
+evidence stays under `.boukensha/benchmarks/` and is excluded from Git, apart
+from one attempt transcript per arm. Those six are committed where they were
+written, and [.boukensha/sessions/](../../.boukensha/sessions/README.md) maps
+every run this term to its path.
 
 ```mermaid
 flowchart LR

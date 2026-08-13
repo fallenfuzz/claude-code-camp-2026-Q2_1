@@ -1,0 +1,15 @@
+{
+  "agent_id": "8a7c1e0d-bda9-4041-8b7e-e96a3fbf6b7b",
+  "character": "Bkvtyaawqbeq",
+  "configuration_digest": "0d8a96b70dc8d192fe6fa5ece192bda73b282a6a6999472ee0af214614155d7c",
+  "control_socket": "/var/folders/_d/64l488sn1ds6n0fsvs4y37tw0000gn/T/boukensha-196d2f443262e3c83d70.sock",
+  "created_at": "2026-08-10T08:11:54.435828+00:00",
+  "experiment_id": null,
+  "gateway_session_id": "5f603d0c-6301-459b-a09b-ce73cb1eccee",
+  "layout_version": 1,
+  "operator_socket": "/var/folders/_d/64l488sn1ds6n0fsvs4y37tw0000gn/T/boukensha-196d2f443262e3c83d70-operator.sock",
+  "player_id": "benchmark-fresh",
+  "run_id": null,
+  "schema_version": 1,
+  "session_id": "8f6dd8a1-5631-4f6e-9cde-73e6346a78a4"
+}
